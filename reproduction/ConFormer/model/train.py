@@ -271,6 +271,12 @@ if __name__ == "__main__":
     if "adaptive_embedding_dim" in model_args:
         model_args.setdefault("node_embedding_dim", model_args.pop("adaptive_embedding_dim"))
     model = ConFormer(**model_args)
+    use_tod = cfg.get("time_of_day")
+    if use_tod is None:
+        use_tod = model_args.get("tod_embedding_dim", 0) > 0
+    use_dow = cfg.get("day_of_week")
+    if use_dow is None:
+        use_dow = model_args.get("dow_embedding_dim", 0) > 0
 
     # ------------------------------- make log file ------------------------------ #
 
@@ -293,8 +299,8 @@ if __name__ == "__main__":
         SCALER,
     ) = get_dataloaders_from_index_data(
         data_path,
-        tod=cfg.get("time_of_day"),
-        dow=cfg.get("day_of_week"),
+        tod=use_tod,
+        dow=use_dow,
         acc=model_args.get("acc_embedding_dim", 0) > 0,
         reg=model_args.get("reg_embedding_dim", 0) > 0,
         batch_size=cfg.get("batch_size", 64),

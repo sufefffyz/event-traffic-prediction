@@ -24,6 +24,33 @@ def _read_hdf_dataframe(data_path):
         return pd.DataFrame(values, index=index, columns=columns).fillna(0)
 
 
+def _build_data_from_hdf(data_dir):
+    df = _read_hdf_dataframe(os.path.join(data_dir, "data.h5"))
+    num_nodes = df.shape[1]
+    data = np.expand_dims(df.values, axis=-1)
+
+    feature_list = [data]
+    time_ind = (df.index.values - df.index.values.astype("datetime64[D]")) / np.timedelta64(1, "D")
+    time_of_day = np.tile(time_ind, [1, num_nodes, 1]).transpose((2, 1, 0))
+    feature_list.append(time_of_day)
+    dow_tiled = np.tile(df.index.dayofweek, [1, num_nodes, 1]).transpose((2, 1, 0))
+    feature_list.append(dow_tiled)
+
+    external_path = os.path.join(data_dir, "external.npz")
+    if os.path.isfile(external_path):
+        external = np.load(external_path)["data"].astype(np.float32)
+        if external.shape[:2] != data.shape[:2]:
+            common_steps = min(external.shape[0], data.shape[0])
+            common_nodes = min(external.shape[1], data.shape[1])
+            feature_list = [
+                feature[:common_steps, :common_nodes]
+                for feature in feature_list
+            ]
+            external = external[:common_steps, :common_nodes]
+        feature_list.append(external)
+    return np.concatenate(feature_list, axis=-1).astype(np.float32)
+
+
 def get_dataloaders_from_index_data(
     data_dir, tod=False, dow=False, dom=False, acc=False, reg=False, batch_size=64, log=None, shift = False, in_steps = 12, out_steps = 12,
 ):  
@@ -32,32 +59,24 @@ def get_dataloaders_from_index_data(
             data = np.load(os.path.join(data_dir, "data_shift.npz"))["data"].astype(np.float32)
         else:
             data = np.load(os.path.join(data_dir, "data.npz"))["data"].astype(np.float32)
+            required_channels = 1
+            if tod:
+                required_channels = max(required_channels, 2)
+            if dow:
+                required_channels = max(required_channels, 3)
+            if acc:
+                required_channels = max(required_channels, 4)
+            if reg:
+                required_channels = max(required_channels, 5)
+            if data.shape[-1] < required_channels:
+                data = _build_data_from_hdf(data_dir)
+                np.savez(os.path.join(data_dir, "data.npz"), data=data)
+                print_log(
+                    f"Rebuilt data.npz with {data.shape[-1]} channels for enabled embeddings.",
+                    log=log,
+                )
     else:
-        df = _read_hdf_dataframe(os.path.join(data_dir, "data.h5"))
-        num_samples, num_nodes = df.shape
-        data = np.expand_dims(df.values, axis=-1)
-        
-        feature_list = [data]
-        time_ind = (df.index.values - df.index.values.astype('datetime64[D]')) / np.timedelta64(1, 'D')
-        time_of_day = np.tile(time_ind, [1, num_nodes, 1]).transpose((2, 1, 0))
-        feature_list.append(time_of_day)
-        dow_tiled = np.tile(df.index.dayofweek, [1, num_nodes, 1]).transpose((2, 1, 0))
-        day_of_week = dow_tiled 
-        feature_list.append(day_of_week)
-        external_path = os.path.join(data_dir, "external.npz")
-        if os.path.isfile(external_path):
-            external = np.load(external_path)["data"].astype(np.float32)
-            if external.shape[:2] != data.shape[:2]:
-                common_steps = min(external.shape[0], data.shape[0])
-                common_nodes = min(external.shape[1], data.shape[1])
-                feature_list = [
-                    feature[:common_steps, :common_nodes]
-                    for feature in feature_list
-                ]
-                external = external[:common_steps, :common_nodes]
-            data = np.concatenate(feature_list + [external], axis=-1)
-        else:
-            data = np.concatenate(feature_list, axis=-1)
+        data = _build_data_from_hdf(data_dir)
         np.savez(os.path.join(data_dir, f"data.npz"), data=data)
 
 
