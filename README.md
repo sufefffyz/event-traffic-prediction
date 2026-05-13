@@ -26,3 +26,7 @@ The imported projects are vendored as plain source directories. Their original `
 - Treat `reproduction/` as baseline reproduction material, not the main implementation surface.
 - Preserve upstream licenses and attribution files inside each imported codebase.
 - If a reproduction directory needs fixes, prefer small, well-documented patches.
+
+## Reproduction Notes
+
+- Start from `reproduction/REPRODUCTION_START.md` for the current task definition, effective-module audit, known code breakpoints, and BasicTS migration plan.
