@@ -54,7 +54,7 @@ class IGSTGNN(BaseModel):
         self.out_fc_2 = nn.Linear(self._output_hidden, model_args['gap'])
 
         dataset = model_args['dataset']
-        data_dir = f"./data/{dataset}"
+        data_dir = model_args.get('data_path', f"./data/{dataset}")
         
         with open(os.path.join(data_dir, 'desc_mapping.json'), 'r') as f:
             desc_mapping = json.load(f)
@@ -89,11 +89,12 @@ class IGSTGNN(BaseModel):
             hidden_dim=self._hidden_dim,
             time_emb_dim=model_args['time_emb_dim'],
             node_emb_dim=model_args['node_hidden'],
-            use_sensor_info=True,
+            use_sensor_info=model_args.get('use_sensor_info', False),
             num_desc=len(desc_mapping),
             num_types=len(type_mapping)
         )
 
+        self.incident_hidden_proj = nn.Linear(self._hidden_dim, self._forecast_dim, bias=False)
         self.incident_trans1 = nn.Linear(self._hidden_dim, model_args['gap'], bias=False)
         self.lambda_incident = model_args.get('lambda_incident', 0.1)
         self.sigma_t = nn.Parameter(torch.tensor(model_args.get('sigma_t', 1.0)), requires_grad=False)
@@ -125,8 +126,10 @@ class IGSTGNN(BaseModel):
         num_feat = self._model_args['num_feat']
         node_emb_u = self.node_emb_u
         node_emb_d = self.node_emb_d
-        time_in_day_feat = self.T_i_D_emb[(history_data[:, :, :, num_feat] * self._model_args['tpd']).type(torch.LongTensor)]
-        day_in_week_feat = self.D_i_W_emb[(history_data[:, :, :, num_feat+1] * 7).type(torch.LongTensor)]
+        time_index = (history_data[:, :, :, num_feat] * self._model_args['tpd']).long().clamp(0, self._model_args['tpd'] - 1)
+        day_index = (history_data[:, :, :, num_feat+1] * 7).long().clamp(0, 6)
+        time_in_day_feat = self.T_i_D_emb[time_index]
+        day_in_week_feat = self.D_i_W_emb[day_index]
         history_data = history_data[:, :, :, :num_feat]
         return history_data, node_emb_u, node_emb_d, time_in_day_feat, day_in_week_feat
 
@@ -192,8 +195,14 @@ class IGSTGNN(BaseModel):
 
         incident_effect_expanded = incident_effect.unsqueeze(1).expand(-1, forecast_len, -1, -1)
 
-        decayed_incident_effect = incident_effect_expanded
-        decayed_incident_effect = self.incident_trans1(decayed_incident_effect)
+        if hidden_dim == incident_effect.shape[-1]:
+            decayed_incident_effect = incident_effect_expanded
+        elif hidden_dim == self._forecast_dim:
+            decayed_incident_effect = self.incident_hidden_proj(incident_effect_expanded)
+        elif hidden_dim == self._model_args['gap']:
+            decayed_incident_effect = self.incident_trans1(incident_effect_expanded)
+        else:
+            raise ValueError(f"Unsupported incident decay target dimension: {hidden_dim}")
 
         enhanced_forecast_hidden = forecast_hidden + decayed_incident_effect * temporal_decay
 
@@ -376,19 +385,16 @@ class IncidentsIcsfModule(nn.Module):
         attn_logits_masked = attn_logits.masked_fill(distance_mask == 0, -1e7)
         attn_weights_first = F.softmax(attn_logits_masked, dim=1)
         
-        if self.use_sensor_info and sensor_data is not None:
+        sensor_embed = None
+        if self.use_sensor_info:
             sensor_embed = self.process_sensor_info(sensor_data, num_nodes)
-            if sensor_embed is not None:
-                fusion_input = torch.cat([
-                    attn_weights_first,
-                    attention_weights,
-                    sensor_embed
-                ], dim=-1)
-            else:
-                fusion_input = torch.cat([
-                    attn_weights_first,
-                    attention_weights
-                ], dim=-1)
+            if sensor_embed is None:
+                sensor_embed = torch.zeros(batch_size, num_nodes, self.icsf_dim, device=history_data.device)
+            fusion_input = torch.cat([
+                attn_weights_first,
+                attention_weights,
+                sensor_embed
+            ], dim=-1)
         else:
             fusion_input = torch.cat([
                 attn_weights_first,
@@ -402,9 +408,13 @@ class IncidentsIcsfModule(nn.Module):
         incident_effect = final_attn_weights * V_expanded
         enhanced_data[:, -1, :, :] = history_data[:, -1, :, :] + incident_effect
 
-        incident_effect_init = torch.cat([F.softmax(K_masked.masked_fill(distance_mask == 0, -1e7), dim=1)
-        , attention_weights, 
-        sensor_embed], dim=-1)
+        incident_effect_parts = [
+            F.softmax(K_masked.masked_fill(distance_mask == 0, -1e7), dim=1),
+            attention_weights,
+        ]
+        if self.use_sensor_info:
+            incident_effect_parts.append(sensor_embed)
+        incident_effect_init = torch.cat(incident_effect_parts, dim=-1)
         incident_effect = F.softmax(self.icsf_fusion_mlp(incident_effect_init).masked_fill(distance_mask == 0, -1e7), dim=1)
         
         return enhanced_data, incident_effect

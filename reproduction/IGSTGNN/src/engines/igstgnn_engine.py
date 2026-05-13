@@ -2,13 +2,15 @@ import torch
 import numpy as np
 from src.base.engine import BaseEngine
 from tqdm import tqdm
-from src.utils.metrics import masked_mape, masked_rmse
+from src.utils.metrics import masked_mape, masked_rmse, compute_all_metrics
 
 class IGSTGNN_Engine(BaseEngine):
     """
     Incident-aware IGSTGNN engine
     """
     def __init__(self, cl_step, warm_step, horizon, incident=False, **args):
+        self._start_time = args.pop('time', None)
+        self._module_name = args.pop('module_name', None)
         super(IGSTGNN_Engine, self).__init__(**args)
         self._cl_step = cl_step
         self._warm_step = warm_step
@@ -109,3 +111,77 @@ class IGSTGNN_Engine(BaseEngine):
             progress_bar.close()
             
         return np.mean(train_loss), np.mean(train_mape), np.mean(train_rmse)
+
+    def _forward_batch(self, batch):
+        if self._incident and isinstance(batch, dict):
+            X = batch['x_data']
+            label = batch['y_data']
+            incident_data = {
+                'incident': batch['incident_features'],
+                'position': batch['incident_position'],
+                'distances': batch['incident_distances'],
+                'durations': batch['durations']
+            }
+
+            X, label = self._to_device(self._to_tensor([X, label]))
+            for key in incident_data:
+                incident_data[key] = self._to_device(self._to_tensor(incident_data[key]))
+
+            sensor_data = None
+            if 'sensor_data' in batch:
+                sensor_data = {}
+                for key, value in batch['sensor_data'].items():
+                    sensor_data[key] = self._to_device(value)
+
+            return self.model(X, label, incident_data=incident_data, sensor_data=sensor_data), label
+
+        if isinstance(batch, tuple) and len(batch) == 2:
+            X, label = batch
+        else:
+            X = batch[0]
+            label = batch[1]
+        X, label = self._to_device(self._to_tensor([X, label]))
+        return self.model(X, label), label
+
+    def evaluate(self, mode):
+        if mode == 'test':
+            self.load_model(self._save_path)
+        self.model.eval()
+
+        preds = []
+        labels = []
+        with torch.no_grad():
+            for batch in self._dataloader[mode + '_loader'].get_iterator():
+                pred, label = self._forward_batch(batch)
+                pred, label = self._inverse_transform([pred, label])
+                preds.append(pred.squeeze(-1).cpu())
+                labels.append(label.squeeze(-1).cpu())
+
+        preds = torch.cat(preds, dim=0)
+        labels = torch.cat(labels, dim=0)
+
+        mask_value = torch.tensor(0)
+        if labels.min() < 1:
+            mask_value = labels.min()
+
+        if mode == 'val':
+            mae = self._loss_fn(preds, labels, mask_value).item()
+            mape = masked_mape(preds, labels, mask_value).item()
+            rmse = masked_rmse(preds, labels, mask_value).item()
+            return mae, mape, rmse
+
+        if mode == 'test':
+            test_mae = []
+            test_mape = []
+            test_rmse = []
+            print('Check mask value', mask_value)
+            for i in range(self.model.horizon):
+                res = compute_all_metrics(preds[:, i, :], labels[:, i, :], mask_value)
+                log = 'Horizon {:d}, Test MAE: {:.4f}, Test RMSE: {:.4f}, Test MAPE: {:.4f}'
+                self._logger.info(log.format(i + 1, res[0], res[2], res[1]))
+                test_mae.append(res[0])
+                test_mape.append(res[1])
+                test_rmse.append(res[2])
+
+            log = 'Average Test MAE: {:.4f}, Test RMSE: {:.4f}, Test MAPE: {:.4f}'
+            self._logger.info(log.format(np.mean(test_mae), np.mean(test_rmse), np.mean(test_mape)))

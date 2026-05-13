@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(__file__ + '/../../..'))
 import torch
 torch.set_num_threads(3)
 
-from src.models.igstgnn import IGSTGNN
+from src.models.IGSTGNN import IGSTGNN
 from src.engines.igstgnn_engine import IGSTGNN_Engine
 from src.utils.args import get_public_config
 from src.utils.dataloader import load_dataset, load_adj_from_numpy, get_dataset_info
@@ -75,6 +75,7 @@ def main():
     device = torch.device(args.device)
     
     data_path, adj_path, node_num = get_dataset_info(args.dataset)
+    args.data_path = data_path
     logger.info('Adj path: ' + adj_path)
 
     # Load adjacency matrix

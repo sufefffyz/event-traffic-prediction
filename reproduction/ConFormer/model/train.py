@@ -241,7 +241,10 @@ if __name__ == "__main__":
 
     # -------------------------------- load model -------------------------------- #
 
-    model = ConFormer(**cfg["model_args"])
+    model_args = dict(cfg["model_args"])
+    if "adaptive_embedding_dim" in model_args:
+        model_args.setdefault("node_embedding_dim", model_args.pop("adaptive_embedding_dim"))
+    model = ConFormer(**model_args)
 
     # ------------------------------- make log file ------------------------------ #
 
@@ -266,6 +269,8 @@ if __name__ == "__main__":
         data_path,
         tod=cfg.get("time_of_day"),
         dow=cfg.get("day_of_week"),
+        acc=model_args.get("acc_embedding_dim", 0) > 0,
+        reg=model_args.get("reg_embedding_dim", 0) > 0,
         batch_size=cfg.get("batch_size", 64),
         log=log,
         in_steps=cfg.get("in_steps", 12),

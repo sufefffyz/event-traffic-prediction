@@ -1,0 +1,64 @@
+import argparse
+import os
+import sys
+
+import numpy as np
+
+
+def load_object_array(path):
+    # Kaggle's object array was saved with NumPy 2.x module paths.
+    sys.modules.setdefault("numpy._core", np.core)
+    sys.modules.setdefault("numpy._core.multiarray", np.core.multiarray)
+    sys.modules.setdefault("numpy._core.numeric", np.core.numeric)
+    return np.load(path, allow_pickle=True)
+
+
+def compute_train_stats(samples):
+    total = 0.0
+    total_sq = 0.0
+    count = 0
+    for sample in samples:
+        values = sample["x_data"][..., 0].astype(np.float64, copy=False)
+        total += values.sum()
+        total_sq += np.square(values).sum()
+        count += values.size
+    mean = total / count
+    var = max(total_sq / count - mean * mean, 0.0)
+    std = np.sqrt(var)
+    if std == 0:
+        std = 1.0
+    return np.float32(mean), np.float32(std)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", default="data/xtraffic/Alameda")
+    parser.add_argument("--source", default="incidents_traffic_data.npy")
+    parser.add_argument("--train-ratio", type=float, default=0.6)
+    parser.add_argument("--val-ratio", type=float, default=0.2)
+    args = parser.parse_args()
+
+    source_path = os.path.join(args.data_dir, args.source)
+    samples = load_object_array(source_path)
+    num_samples = len(samples)
+    train_end = int(num_samples * args.train_ratio)
+    val_end = int(num_samples * (args.train_ratio + args.val_ratio))
+
+    splits = {
+        "train": samples[:train_end],
+        "val": samples[train_end:val_end],
+        "test": samples[val_end:],
+    }
+    for name, split_samples in splits.items():
+        out_path = os.path.join(args.data_dir, f"incident_data_{name}.npy")
+        np.save(out_path, split_samples, allow_pickle=True)
+        print(f"{name}: {len(split_samples)} -> {out_path}")
+
+    mean, std = compute_train_stats(splits["train"])
+    stats_path = os.path.join(args.data_dir, "incident_data_stats.npz")
+    np.savez(stats_path, mean=mean, std=std)
+    print(f"stats: mean={mean}, std={std} -> {stats_path}")
+
+
+if __name__ == "__main__":
+    main()

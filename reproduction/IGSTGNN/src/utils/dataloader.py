@@ -189,13 +189,16 @@ class IncidentDataLoader(object):
                     batch_event_data = {
                         'x_data': x,
                         'y_data': y,
+                        'incident_features': np.array(event_features_list),
+                        'incident_position': np.array([sample['event_position'] for sample in batch_samples]),
+                        'incident_distances': np.array([sample['event_distances'] for sample in batch_samples]),
                         'event_features': np.array(event_features_list),
                         'event_position': np.array([sample['event_position'] for sample in batch_samples]),
                         'event_distances': np.array([sample['event_distances'] for sample in batch_samples]),
                         'durations': np.array([sample['durations'] for sample in batch_samples]),
                     }
                     
-                    if self.incidents_sensor is not None:
+                    if isinstance(self.incidents_sensor, dict):
                         sensor_type = np.array(self.incidents_sensor['sensor_type'], dtype=np.int64)
                         surface = np.array(self.incidents_sensor['surface'], dtype=np.int64)
                         roadway_use = np.array(self.incidents_sensor['roadway_use'], dtype=np.int64)

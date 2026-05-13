@@ -141,13 +141,15 @@ class GCN(nn.Module):
     def __init__(self, c_in, node_num, supports=[], adp=1, order=2, dropout=0.0):
         super(GCN, self).__init__()
         self.nconv = nconv()
-        self.support_len = len(supports)
+        if supports is None or isinstance(supports, int):
+            supports = []
+        self.support_len = len(supports) + int(adp)
         self.supports = supports
         self.adp = adp
         self.dropout = dropout
         if self.support_len > 0:
             c_out = c_in
-            c_in = (order * (self.support_len + adp) + 1) * c_in
+            c_in = (order * self.support_len + 1) * c_in
             self.mlp = nn.Sequential(nn.Linear(c_in, c_out, bias=True), nn.ReLU())
             self.order = order
         if self.adp:

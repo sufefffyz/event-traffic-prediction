@@ -6,8 +6,26 @@ import pandas as pd
 # ! X shape: (B, T, N, C)
 
 
+def _read_hdf_dataframe(data_path):
+    try:
+        return pd.read_hdf(data_path).fillna(0)
+    except ValueError as exc:
+        if "unrecognized index type datetime64" not in str(exc):
+            raise
+        import tables
+
+        with tables.open_file(data_path) as h5_file:
+            group = getattr(h5_file.root, "t")
+            values = group.block0_values.read()
+            index = pd.to_datetime(group.axis1.read())
+            columns = group.axis0.read()
+            if columns.dtype.kind == "S":
+                columns = columns.astype(str)
+        return pd.DataFrame(values, index=index, columns=columns).fillna(0)
+
+
 def get_dataloaders_from_index_data(
-    data_dir, tod=False, dow=False, dom=False, batch_size=64, log=None, shift = False, in_steps = 12, out_steps = 12,
+    data_dir, tod=False, dow=False, dom=False, acc=False, reg=False, batch_size=64, log=None, shift = False, in_steps = 12, out_steps = 12,
 ):  
     if os.path.isfile(os.path.join(data_dir, "data.npz")) == True:
         if shift:
@@ -15,7 +33,7 @@ def get_dataloaders_from_index_data(
         else:
             data = np.load(os.path.join(data_dir, "data.npz"))["data"].astype(np.float32)
     else:
-        df = pd.read_hdf(os.path.join(data_dir, "data.h5")).fillna(0)
+        df = _read_hdf_dataframe(os.path.join(data_dir, "data.h5"))
         num_samples, num_nodes = df.shape
         data = np.expand_dims(df.values, axis=-1)
         
@@ -26,9 +44,20 @@ def get_dataloaders_from_index_data(
         dow_tiled = np.tile(df.index.dayofweek, [1, num_nodes, 1]).transpose((2, 1, 0))
         day_of_week = dow_tiled 
         feature_list.append(day_of_week)
-        # external = np.load(os.path.join(data_dir, "external.npz"))["data"].astype(np.float32)
-        # data = np.concatenate(feature_list + [external], axis=-1)[:, :cfg['num_nodes']]
-        data = np.concatenate(feature_list, axis=-1)
+        external_path = os.path.join(data_dir, "external.npz")
+        if os.path.isfile(external_path):
+            external = np.load(external_path)["data"].astype(np.float32)
+            if external.shape[:2] != data.shape[:2]:
+                common_steps = min(external.shape[0], data.shape[0])
+                common_nodes = min(external.shape[1], data.shape[1])
+                feature_list = [
+                    feature[:common_steps, :common_nodes]
+                    for feature in feature_list
+                ]
+                external = external[:common_steps, :common_nodes]
+            data = np.concatenate(feature_list + [external], axis=-1)
+        else:
+            data = np.concatenate(feature_list, axis=-1)
         np.savez(os.path.join(data_dir, f"data.npz"), data=data)
 
 
@@ -40,6 +69,14 @@ def get_dataloaders_from_index_data(
         # data[..., 2] = np.where(data[..., 2] >= 5, 1, 0)
     # if dom:
     #     features.append(3)
+    if acc:
+        if data.shape[-1] <= 3:
+            raise ValueError("Accident embedding is enabled, but data has no accident channel at index 3.")
+        features.append(3)
+    if reg:
+        if data.shape[-1] <= 4:
+            raise ValueError("Region embedding is enabled, but data has no region channel at index 4.")
+        features.append(4)
     data = data[..., features]
 
     if os.path.isfile(os.path.join(data_dir, f"index.npz")) == False:
