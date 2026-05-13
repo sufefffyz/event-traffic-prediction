@@ -74,8 +74,8 @@ Screen/log:
 - Screen: `igstgnn_alameda_official`
 - Log directory: `reproduction/IGSTGNN/experiments/IGSTGNN/server_logs`
 
-The screen waits for GPU 1 to satisfy `memory <= 5000 MiB` and `util <= 20%`,
-then runs the README/run.sh-style Alameda command with default training epochs.
+The screen waits for GPU 0 to have more than 50% free memory, then runs the
+README/run.sh-style Alameda command with default training epochs.
 
 ## ConFormer
 
@@ -129,5 +129,5 @@ Screen/log:
 - Screen: `conformer_tky_official`
 - Log directory: `reproduction/ConFormer/logs/server_logs`
 
-The screen waits for GPU 1 to satisfy `memory <= 5000 MiB` and `util <= 20%`,
-then runs the README-style TKY command.
+The screen waits for GPU 0 to have more than 50% free memory, then runs the
+README-style TKY command.
