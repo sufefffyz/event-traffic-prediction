@@ -46,10 +46,11 @@ def eval_model(model, valset_loader, criterion):
 
 
 @torch.no_grad()
-def predict(model, loader):
+def predict(model, loader, return_context=False):
     model.eval()
     y = []
     out = []
+    context = []
 
     for x_batch, y_batch in loader:
         x_batch = x_batch.to(DEVICE)
@@ -62,10 +63,15 @@ def predict(model, loader):
         y_batch = y_batch.cpu().numpy()
         out.append(out_batch)
         y.append(y_batch)
+        if return_context:
+            context_channels = x_batch[..., 3:].detach().cpu().numpy()
+            context.append(context_channels.astype(np.float16))
 
     out = np.vstack(out).squeeze()  # (samples, out_steps, num_nodes)
     y = np.vstack(y).squeeze()
 
+    if return_context:
+        return y, out, np.vstack(context)
     return y, out
 
 
@@ -185,15 +191,16 @@ def train(
 
 
 @torch.no_grad()
-def test_model(model, testset_loader, log=None):
+def test_model(model, testset_loader, log=None, result_path=None, checkpoint_path=None):
     model.eval()
     print_log("--------- Test ---------", log=log)
 
     start = time.time()
-    y_true, y_pred = predict(model, testset_loader)
+    y_true, y_pred, input_context = predict(model, testset_loader, return_context=True)
     end = time.time()
 
     rmse_all, mae_all, mape_all = RMSE_MAE_MAPE(y_true, y_pred)
+    metrics_by_horizon = []
     out_str = "All Steps RMSE = %.5f, MAE = %.5f, MAPE = %.5f\n" % (
         rmse_all,
         mae_all,
@@ -202,6 +209,7 @@ def test_model(model, testset_loader, log=None):
     out_steps = y_pred.shape[1]
     for i in range(out_steps):
         rmse, mae, mape = RMSE_MAE_MAPE(y_true[:, i, :], y_pred[:, i, :])
+        metrics_by_horizon.append([rmse, mae, mape])
         out_str += "Step %d RMSE = %.5f, MAE = %.5f, MAPE = %.5f\n" % (
             i + 1,
             rmse,
@@ -211,6 +219,24 @@ def test_model(model, testset_loader, log=None):
 
     print_log(out_str, log=log, end="")
     print_log("Inference time: %.2f s" % (end - start), log=log)
+    if result_path is not None:
+        result_dir = os.path.dirname(result_path)
+        if result_dir:
+            os.makedirs(result_dir, exist_ok=True)
+        np.savez_compressed(
+            result_path,
+            prediction=y_pred,
+            target=y_true,
+            input_context=input_context,
+            context_channel_names=np.array(["accident", "region"]),
+            metrics_overall=np.array([rmse_all, mae_all, mape_all]),
+            metrics_by_horizon=np.asarray(metrics_by_horizon),
+            metric_names=np.array(["rmse", "mae", "mape"]),
+            checkpoint=np.array(checkpoint_path or ""),
+            scaler_mean=np.array(SCALER.mean),
+            scaler_std=np.array(SCALER.std),
+        )
+        print_log(f"Saved test result arrays: {result_path}", log=log)
 
 
 if __name__ == "__main__":
@@ -294,6 +320,7 @@ if __name__ == "__main__":
         print_log(f"Loading the latest model: {latest_model}", log=log)
         model.load_state_dict(torch.load(latest_model))
         model = model.to(DEVICE)
+        save = latest_model
 
     # ---------------------- set loss, optimizer, scheduler ---------------------- #
 
@@ -361,6 +388,10 @@ if __name__ == "__main__":
         )
         print_log(f"Saved Model: {save}", log=log)
 
-    test_model(model, testset_loader, log=log)
+    result_path = os.path.join(
+        "../test_results",
+        f"{model_name}-{dataset}-{now}-test_result.npz",
+    )
+    test_model(model, testset_loader, log=log, result_path=result_path, checkpoint_path=save)
 
     log.close()

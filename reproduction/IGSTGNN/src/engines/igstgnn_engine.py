@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import os
 from src.base.engine import BaseEngine
 from tqdm import tqdm
 from src.utils.metrics import masked_mape, masked_rmse, compute_all_metrics
@@ -143,6 +144,19 @@ class IGSTGNN_Engine(BaseEngine):
         X, label = self._to_device(self._to_tensor([X, label]))
         return self.model(X, label), label
 
+    def _collect_test_context(self, batch, context):
+        if not isinstance(batch, dict):
+            return
+        key_map = {
+            'incident_features': 'incident_features',
+            'incident_position': 'incident_position',
+            'incident_distances': 'incident_distances',
+            'durations': 'durations',
+        }
+        for source_key, result_key in key_map.items():
+            if source_key in batch:
+                context.setdefault(result_key, []).append(np.asarray(batch[source_key]))
+
     def evaluate(self, mode):
         if mode == 'test':
             self.load_model(self._save_path)
@@ -150,8 +164,11 @@ class IGSTGNN_Engine(BaseEngine):
 
         preds = []
         labels = []
+        test_context = {} if mode == 'test' else None
         with torch.no_grad():
             for batch in self._dataloader[mode + '_loader'].get_iterator():
+                if test_context is not None:
+                    self._collect_test_context(batch, test_context)
                 pred, label = self._forward_batch(batch)
                 pred, label = self._inverse_transform([pred, label])
                 preds.append(pred.squeeze(-1).cpu())
@@ -185,3 +202,17 @@ class IGSTGNN_Engine(BaseEngine):
 
             log = 'Average Test MAE: {:.4f}, Test RMSE: {:.4f}, Test MAPE: {:.4f}'
             self._logger.info(log.format(np.mean(test_mae), np.mean(test_rmse), np.mean(test_mape)))
+            result_path = os.path.join(self._save_path, 'test_result_s{}.npz'.format(self._seed))
+            result_payload = {
+                'prediction': preds.numpy(),
+                'target': labels.numpy(),
+                'metrics_by_horizon': np.stack([test_mae, test_rmse, test_mape], axis=1),
+                'metrics_average': np.array([np.mean(test_mae), np.mean(test_rmse), np.mean(test_mape)]),
+                'metric_names': np.array(['mae', 'rmse', 'mape']),
+                'checkpoint': np.array(os.path.join(self._save_path, 'best_model_s{}.pt'.format(self._seed))),
+                'mask_value': np.array(mask_value.item() if hasattr(mask_value, 'item') else mask_value),
+            }
+            for key, chunks in test_context.items():
+                result_payload[key] = np.concatenate(chunks, axis=0)
+            np.savez_compressed(result_path, **result_payload)
+            self._logger.info('Saved test result arrays to {}'.format(result_path))

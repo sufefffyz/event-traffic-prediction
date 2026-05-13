@@ -68,14 +68,21 @@ class BaseEngine():
     def save_model(self, save_path):
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-        filename = 'final_model_s{}.pt'.format(self._seed)
-        torch.save(self.model.state_dict(), os.path.join(save_path, filename))
+        state_dict = self.model.state_dict()
+        best_filename = 'best_model_s{}.pt'.format(self._seed)
+        final_filename = 'final_model_s{}.pt'.format(self._seed)
+        torch.save(state_dict, os.path.join(save_path, best_filename))
+        torch.save(state_dict, os.path.join(save_path, final_filename))
 
 
     def load_model(self, save_path):
-        filename = 'final_model_s{}.pt'.format(self._seed)
+        filename = 'best_model_s{}.pt'.format(self._seed)
+        model_path = os.path.join(save_path, filename)
+        if not os.path.exists(model_path):
+            filename = 'final_model_s{}.pt'.format(self._seed)
+            model_path = os.path.join(save_path, filename)
         self.model.load_state_dict(torch.load(
-            os.path.join(save_path, filename)))   
+            model_path))
 
 
     def train_batch(self):

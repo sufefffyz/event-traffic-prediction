@@ -62,6 +62,15 @@ Smoke result:
 - Test RMSE: 9723.6697
 - Test MAPE: 0.3602
 
+IGSTGNN now saves the validation-best checkpoint and test arrays:
+
+- Best checkpoint: `experiments/igstgnn/Alameda_2025/best_model_s2025.pt`
+- Backward-compatible checkpoint copy: `experiments/igstgnn/Alameda_2025/final_model_s2025.pt`
+- Test result: `experiments/igstgnn/Alameda_2025/test_result_s2025.npz`
+- Test result keys: `prediction`, `target`, `metrics_by_horizon`,
+  `metrics_average`, `incident_features`, `incident_position`,
+  `incident_distances`, `durations`, `checkpoint`
+
 Full official-style run is launched through a GPU-waiting screen:
 
 ```bash
@@ -109,6 +118,16 @@ Check result:
 - First batch: `x=(16, 6, 1843, 5)`, `y=(16, 6, 1843, 1)`
 - Scaler mean: 58.43083080428048
 - Scaler std: 23.61220449621385
+
+ConFormer already saves the validation-best model under `saved_models/`. It
+now also writes a compressed test result file under `test_results/`:
+
+- Test result pattern: `test_results/ConFormer-TKY-*-test_result.npz`
+- Test result keys: `prediction`, `target`, `input_context`,
+  `context_channel_names`, `metrics_overall`, `metrics_by_horizon`,
+  `checkpoint`, `scaler_mean`, `scaler_std`
+- `input_context` stores the accident/region input channels as `float16`, so
+  accident-conditioned forecast behavior can be analyzed after training.
 
 Official training entrypoint:
 
