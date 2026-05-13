@@ -6,7 +6,7 @@ external event-aware traffic forecasting repositories.
 ## Server Layout
 
 - Server: `183.174.228.180`
-- Code: `/home/yuzhang_fei/code/event-traffic-prediction`
+- Code: `/home/yuzhang_fei/code/event-traffic-prediction-git`
 - Data: `/data/yuzhang_fei/event-traffic-prediction`
 - Conda env: `STGraph`
 
@@ -27,7 +27,7 @@ The Kaggle release stores Alameda as one large object array. The helper script
 below converts it into the split files expected by the repository dataloader:
 
 ```bash
-cd /home/yuzhang_fei/code/event-traffic-prediction/reproduction/IGSTGNN
+cd /home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/IGSTGNN
 conda run -n STGraph python src/utils/prepare_alameda_splits.py \
   --data-dir data/xtraffic/Alameda
 ```
@@ -43,7 +43,7 @@ Generated split summary:
 Smoke run completed on 2026-05-13 with one epoch:
 
 ```bash
-cd /home/yuzhang_fei/code/event-traffic-prediction/reproduction/IGSTGNN
+cd /home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/IGSTGNN
 CUDA_VISIBLE_DEVICES=1 conda run -n STGraph python experiments/IGSTGNN/main.py \
   --device cuda:0 \
   --dataset Alameda \
@@ -66,7 +66,7 @@ Full official-style run is launched through a GPU-waiting screen:
 
 ```bash
 screen -dmS igstgnn_alameda_official \
-  bash /home/yuzhang_fei/code/event-traffic-prediction/reproduction/server_scripts/wait_and_run_igstgnn_alameda.sh
+  bash /home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/server_scripts/wait_and_run_igstgnn_alameda.sh
 ```
 
 Screen/log:
@@ -98,7 +98,7 @@ TKY dataloader check completed on 2026-05-13:
 
 ```bash
 conda run -n STGraph python \
-  /home/yuzhang_fei/code/event-traffic-prediction/reproduction/server_scripts/check_conformer_tky_data.py
+  /home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/server_scripts/check_conformer_tky_data.py
 ```
 
 Check result:
@@ -113,7 +113,7 @@ Check result:
 Official training entrypoint:
 
 ```bash
-cd /home/yuzhang_fei/code/event-traffic-prediction/reproduction/ConFormer/model
+cd /home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/ConFormer/model
 CUDA_VISIBLE_DEVICES=1 conda run -n STGraph python train.py -d tky -g 0 -m train
 ```
 
@@ -121,7 +121,7 @@ Prepared GPU-waiting launcher:
 
 ```bash
 screen -dmS conformer_tky_official \
-  bash /home/yuzhang_fei/code/event-traffic-prediction/reproduction/server_scripts/wait_and_run_conformer_tky.sh
+  bash /home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/server_scripts/wait_and_run_conformer_tky.sh
 ```
 
 Screen/log:
