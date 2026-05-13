@@ -30,6 +30,15 @@ def compute_train_stats(samples):
     return np.float32(mean), np.float32(std)
 
 
+def normalize_sample(sample, mean, std):
+    normalized = dict(sample)
+    for key in ("x_data", "y_data"):
+        values = np.array(sample[key], copy=True)
+        values[..., 0] = (values[..., 0] - mean) / std
+        normalized[key] = values.astype(np.float32, copy=False)
+    return normalized
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data/xtraffic/Alameda")
@@ -44,20 +53,30 @@ def main():
     train_end = int(num_samples * args.train_ratio)
     val_end = int(num_samples * (args.train_ratio + args.val_ratio))
 
-    splits = {
+    raw_splits = {
         "train": samples[:train_end],
         "val": samples[train_end:val_end],
         "test": samples[val_end:],
     }
+
+    mean, std = compute_train_stats(raw_splits["train"])
+    splits = {
+        name: np.array(
+            [normalize_sample(sample, mean, std) for sample in split_samples],
+            dtype=object,
+        )
+        for name, split_samples in raw_splits.items()
+    }
+
     for name, split_samples in splits.items():
         out_path = os.path.join(args.data_dir, f"incident_data_{name}.npy")
         np.save(out_path, split_samples, allow_pickle=True)
         print(f"{name}: {len(split_samples)} -> {out_path}")
 
-    mean, std = compute_train_stats(splits["train"])
     stats_path = os.path.join(args.data_dir, "incident_data_stats.npz")
     np.savez(stats_path, mean=mean, std=std)
     print(f"stats: mean={mean}, std={std} -> {stats_path}")
+    print("normalized x_data/y_data traffic channel 0 using train statistics")
 
 
 if __name__ == "__main__":
