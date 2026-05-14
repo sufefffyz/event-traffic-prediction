@@ -43,8 +43,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data/xtraffic/Alameda")
     parser.add_argument("--source", default="incidents_traffic_data.npy")
-    parser.add_argument("--train-ratio", type=float, default=0.6)
-    parser.add_argument("--val-ratio", type=float, default=0.2)
+    parser.add_argument("--train-ratio", type=float, default=0.7)
+    parser.add_argument("--val-ratio", type=float, default=0.15)
     args = parser.parse_args()
 
     source_path = os.path.join(args.data_dir, args.source)
@@ -58,6 +58,16 @@ def main():
         "val": samples[train_end:val_end],
         "test": samples[val_end:],
     }
+
+    print(
+        "AI-supplemented preprocessing: official code reads incident_data_train/val/test.npy "
+        "and incident_data_stats.npz, but the public Kaggle archive provides incidents_traffic_data.npy. "
+        "This script reconstructs those files without changing the official model/training code."
+    )
+    print(
+        f"chronological split ratios: train={args.train_ratio}, "
+        f"val={args.val_ratio}, test={1.0 - args.train_ratio - args.val_ratio}"
+    )
 
     mean, std = compute_train_stats(raw_splits["train"])
     splits = {
