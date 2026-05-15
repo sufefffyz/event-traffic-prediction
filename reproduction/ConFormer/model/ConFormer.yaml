@@ -36,5 +36,91 @@ TKY:
     adp_dropout: 0.2
     dow_dropout: 0.1
     tod_dropout: 0
-    
 
+SD:
+  num_nodes: 716
+  in_steps: 12
+  out_steps: 12
+
+  train_size: 0.6
+  val_size: 0.2
+
+  lr: 0.001
+  weight_decay: 0.001
+  milestones: [25, 45, 65]
+  lr_decay_rate: 0.1
+  batch_size: 16
+  max_epochs: 300
+  early_stop: 30
+  use_cl: False
+  cl_step_size: 2500
+
+  protocol_notes:
+    - "Paper-aligned: SD uses 12 input steps, 12 output steps, 15 min interval, 716 nodes, chronological 6:2:2 split, US Accidents, and no regulation channel."
+    - "AI-supplemented: official repo ships no SD YAML; num_layers and feed_forward_dim are inferred from the paper parameter count under the released model code."
+
+  model_args:
+    num_nodes: 716
+    in_steps: 12
+    out_steps: 12
+    steps_per_day: 96
+    input_dim: 1
+    output_dim: 1
+    input_embedding_dim: 32
+    tod_embedding_dim: 32
+    dow_embedding_dim: 32
+    acc_embedding_dim: 32
+    reg_embedding_dim: 0
+    adaptive_embedding_dim: 32
+    feed_forward_dim: 331
+    num_heads: 2
+    num_layers: 2
+    dropout: 0.1
+    adp_dropout: 0.2
+    dow_dropout: 0.1
+    tod_dropout: 0
+
+BA:
+  num_nodes: 2352
+  in_steps: 12
+  out_steps: 12
+
+  train_size: 0.6
+  val_size: 0.2
+
+  lr: 0.001
+  weight_decay: 0.001
+  milestones: [25, 45, 65]
+  lr_decay_rate: 0.1
+  batch_size: 16
+  max_epochs: 300
+  early_stop: 30
+  use_cl: False
+  cl_step_size: 2500
+
+  protocol_notes:
+    - "Paper-aligned: BA uses 12 input steps, 12 output steps, 15 min interval, 2352 nodes, chronological 6:2:2 split, US Accidents, and no regulation channel."
+    - "AI-supplemented: official repo ships no BA YAML; num_layers and feed_forward_dim are inferred from the paper parameter count under the released model code."
+    - "AI-supplemented: BA data.npz lacks the accident channel, so the loader appends accident.h5 in memory when accident embedding is enabled."
+
+  model_args:
+    num_nodes: 2352
+    in_steps: 12
+    out_steps: 12
+    steps_per_day: 96
+    input_dim: 1
+    output_dim: 1
+    input_embedding_dim: 32
+    tod_embedding_dim: 32
+    dow_embedding_dim: 32
+    acc_embedding_dim: 32
+    reg_embedding_dim: 0
+    adaptive_embedding_dim: 32
+    feed_forward_dim: 239
+    num_heads: 2
+    num_layers: 2
+    dropout: 0.1
+    adp_dropout: 0.2
+    dow_dropout: 0.1
+    tod_dropout: 0
+    

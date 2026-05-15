@@ -40,5 +40,11 @@ done
 
 cd "$RUN_DIR"
 echo "Starting ConFormer ${DATASET} official-style run." | tee -a "$RUN_LOG"
+case "${DATASET,,}" in
+  ba|sd)
+    echo "Protocol note: paper-aligned BA/SD horizon=12/12, interval=15min, split=6:2:2, US Accidents enabled, regulation disabled." | tee -a "$RUN_LOG"
+    echo "AI-supplemented note: official repo does not ship BA/SD YAML; config fills missing settings and logs protocol_notes from ConFormer.yaml." | tee -a "$RUN_LOG"
+    ;;
+esac
 CUDA_VISIBLE_DEVICES="$GPU_ID" "$CONDA_BIN" run -n "$CONDA_ENV" \
   python train.py -d "$DATASET" -g 0 -m train 2>&1 | tee -a "$RUN_LOG"

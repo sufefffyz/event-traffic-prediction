@@ -191,7 +191,14 @@ def train(
 
 
 @torch.no_grad()
-def test_model(model, testset_loader, log=None, result_path=None, checkpoint_path=None):
+def test_model(
+    model,
+    testset_loader,
+    log=None,
+    result_path=None,
+    checkpoint_path=None,
+    context_channel_names=None,
+):
     model.eval()
     print_log("--------- Test ---------", log=log)
 
@@ -223,12 +230,16 @@ def test_model(model, testset_loader, log=None, result_path=None, checkpoint_pat
         result_dir = os.path.dirname(result_path)
         if result_dir:
             os.makedirs(result_dir, exist_ok=True)
+        if context_channel_names is None:
+            context_channel_names = [
+                f"context_{i}" for i in range(input_context.shape[-1])
+            ]
         np.savez_compressed(
             result_path,
             prediction=y_pred,
             target=y_true,
             input_context=input_context,
-            context_channel_names=np.array(["accident", "region"]),
+            context_channel_names=np.array(context_channel_names),
             metrics_overall=np.array([rmse_all, mae_all, mape_all]),
             metrics_by_horizon=np.asarray(metrics_by_horizon),
             metric_names=np.array(["rmse", "mae", "mape"]),
@@ -308,6 +319,11 @@ if __name__ == "__main__":
         in_steps=cfg.get("in_steps", 12),
         out_steps=cfg.get("out_steps", 12)
     )
+    context_channel_names = []
+    if model_args.get("acc_embedding_dim", 0) > 0:
+        context_channel_names.append("accident")
+    if model_args.get("reg_embedding_dim", 0) > 0:
+        context_channel_names.append("region")
     print_log(log=log)
 
     # --------------------------- set model saving path -------------------------- #
@@ -398,6 +414,13 @@ if __name__ == "__main__":
         "../test_results",
         f"{model_name}-{dataset}-{now}-test_result.npz",
     )
-    test_model(model, testset_loader, log=log, result_path=result_path, checkpoint_path=save)
+    test_model(
+        model,
+        testset_loader,
+        log=log,
+        result_path=result_path,
+        checkpoint_path=save,
+        context_channel_names=context_channel_names,
+    )
 
     log.close()

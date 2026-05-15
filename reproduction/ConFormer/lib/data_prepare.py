@@ -51,6 +51,37 @@ def _build_data_from_hdf(data_dir):
     return np.concatenate(feature_list, axis=-1).astype(np.float32)
 
 
+def _append_accident_channel_from_hdf(data_dir, data, log=None):
+    if data.shape[-1] > 3:
+        return data
+
+    accident_path = os.path.join(data_dir, "accident.h5")
+    if not os.path.isfile(accident_path):
+        return data
+
+    accident_df = _read_hdf_dataframe(accident_path)
+    accident = accident_df.values.astype(np.float32)
+
+    common_steps = min(data.shape[0], accident.shape[0])
+    common_nodes = min(data.shape[1], accident.shape[1])
+    if common_steps != data.shape[0] or common_nodes != data.shape[1]:
+        print_log(
+            "Aligned accident.h5 to data shape: "
+            f"data={data.shape[:2]}, accident={accident.shape[:2]}, "
+            f"using=({common_steps}, {common_nodes}).",
+            log=log,
+        )
+        data = data[:common_steps, :common_nodes]
+
+    accident = accident[:common_steps, :common_nodes, None]
+    data = np.concatenate([data, accident], axis=-1)
+    print_log(
+        f"Appended accident.h5 as accident channel; data shape is now {data.shape}.",
+        log=log,
+    )
+    return data
+
+
 def get_dataloaders_from_index_data(
     data_dir, tod=False, dow=False, dom=False, acc=False, reg=False, batch_size=64, log=None, shift = False, in_steps = 12, out_steps = 12,
 ):  
@@ -69,14 +100,29 @@ def get_dataloaders_from_index_data(
             if reg:
                 required_channels = max(required_channels, 5)
             if data.shape[-1] < required_channels:
-                data = _build_data_from_hdf(data_dir)
-                np.savez(os.path.join(data_dir, "data.npz"), data=data)
-                print_log(
-                    f"Rebuilt data.npz with {data.shape[-1]} channels for enabled embeddings.",
-                    log=log,
-                )
+                rebuilt_data = False
+                if acc:
+                    data = _append_accident_channel_from_hdf(data_dir, data, log=log)
+                if data.shape[-1] < required_channels:
+                    data = _build_data_from_hdf(data_dir)
+                    if acc:
+                        data = _append_accident_channel_from_hdf(data_dir, data, log=log)
+                    np.savez(os.path.join(data_dir, "data.npz"), data=data)
+                    rebuilt_data = True
+                if rebuilt_data:
+                    print_log(
+                        f"Rebuilt data.npz with {data.shape[-1]} channels for enabled embeddings.",
+                        log=log,
+                    )
+                else:
+                    print_log(
+                        f"Using in-memory data with {data.shape[-1]} channels for enabled embeddings.",
+                        log=log,
+                    )
     else:
         data = _build_data_from_hdf(data_dir)
+        if acc:
+            data = _append_accident_channel_from_hdf(data_dir, data, log=log)
         np.savez(os.path.join(data_dir, f"data.npz"), data=data)
 
 
