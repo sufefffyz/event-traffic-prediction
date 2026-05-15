@@ -22,10 +22,10 @@ Paper-aligned settings used for BA and SD:
 AI-supplemented settings:
 
 - The official repository only ships a TKY YAML block, so BA/SD YAML blocks are added here.
-- `num_layers` and `feed_forward_dim` are inferred to match the paper-reported parameter counts under the released model code:
-  - SD: `num_layers=2`, `feed_forward_dim=331`
-  - BA: `num_layers=2`, `feed_forward_dim=239`
-  - Expected trainable parameters under the released code are approximately SD 757,842 and BA 783,850.
+- The official repo does not provide BA/SD architecture blocks. To avoid unnatural non-standard widths, BA/SD keep TKY-style hidden dimensions and common powers of two:
+  - SD: `num_layers=2`, `feed_forward_dim=256`
+  - BA: `num_layers=2`, `feed_forward_dim=256`
+  - Expected trainable parameters under the released code are approximately SD 709,692 and BA 794,764. This is close in scale, but not an exact match to the paper table because the paper does not publish the BA/SD YAML.
 - BA `data.npz` has traffic, time-of-day, and day-of-week channels but no accident channel. When accident embedding is enabled, the loader appends `accident.h5` in memory as channel 3.
 
 These supplements are intentionally minimal: they keep the official `train.py` path and only fill the missing BA/SD configuration and accident-channel bridge needed by the released data layout.
