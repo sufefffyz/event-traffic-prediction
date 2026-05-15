@@ -100,6 +100,7 @@ BA:
 
   protocol_notes:
     - "Paper-aligned: BA uses 12 input steps, 12 output steps, 15 min interval, 2352 nodes, chronological 6:2:2 split, US Accidents, and no regulation channel."
+    - "Paper-aligned: BA uses fast linear attention to control memory on the large graph, following the paper's Bay Area training note."
     - "AI-supplemented: official repo ships no BA YAML; hidden dimensions follow TKY-style common powers of two, with fewer layers to stay near the paper parameter scale."
     - "AI-supplemented: BA data.npz lacks the accident channel, so the loader appends accident.h5 in memory when accident embedding is enabled."
 
@@ -119,6 +120,7 @@ BA:
     feed_forward_dim: 256
     num_heads: 2
     num_layers: 2
+    fast: True
     dropout: 0.1
     adp_dropout: 0.2
     dow_dropout: 0.1
