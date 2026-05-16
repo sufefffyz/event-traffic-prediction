@@ -38,21 +38,13 @@ class AttentionLayer(nn.Module):
     def forward(self, x):
         query, key, value = self.qkv(x).chunk(3, -1)
         if self.fast:
-            qs = torch.stack(torch.split(query, self.head_dim, dim=-1), dim=-2).flatten(
-                start_dim=0, end_dim=1
-            )
-            ks = torch.stack(torch.split(key, self.head_dim, dim=-1), dim=-2).flatten(
-                start_dim=0, end_dim=1
-            )
-            vs = torch.stack(torch.split(value, self.head_dim, dim=-1), dim=-2).flatten(
-                start_dim=0, end_dim=1
-            )
+            qs = torch.stack(torch.split(query, self.head_dim, dim=-1), dim=-2)
+            ks = torch.stack(torch.split(key, self.head_dim, dim=-1), dim=-2)
+            vs = torch.stack(torch.split(value, self.head_dim, dim=-1), dim=-2)
 
             qs = nn.functional.normalize(qs, dim=-1)
             ks = nn.functional.normalize(ks, dim=-1)
             N = qs.shape[1]
-            batch_size = query.shape[0]
-            length = query.shape[1]
 
             # numerator
             kvs = torch.einsum("blhm,blhd->bhmd", ks, vs)
@@ -70,7 +62,7 @@ class AttentionLayer(nn.Module):
             )  # [N, H, 1]
             attention_normalizer += torch.ones_like(attention_normalizer) * N
             out = attention_num / attention_normalizer  # [N, H, D]
-            out = torch.unflatten(out, 0, (batch_size, length)).flatten(start_dim=3)
+            out = out.flatten(start_dim=-2)
             out = self.out_proj(out)
         else:
             qs = torch.stack(torch.split(query, self.head_dim, dim=-1), dim=2)
