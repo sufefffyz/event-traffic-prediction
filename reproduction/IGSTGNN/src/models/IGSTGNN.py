@@ -137,6 +137,7 @@ class IGSTGNN(BaseModel):
         history_data, node_embedding_u, node_embedding_d, time_in_day_feat, day_in_week_feat = self._prepare_inputs(history_data)
 
         history_data = self.embedding(history_data)
+        incident_effect = None
         if incident_data is not None:
             incident_tod_feat = time_in_day_feat[:, -1, 0, :]
             incident_day_feat = day_in_week_feat[:, -1, 0, :]
@@ -174,6 +175,9 @@ class IGSTGNN(BaseModel):
         """
         Apply incident decay mechanism to prediction results
         """
+        if incident_data is None or incident_effect is None:
+            return forecast_hidden
+
         batch_size, forecast_len, num_nodes, hidden_dim = forecast_hidden.shape
 
         incident_distances = incident_data['distances']
