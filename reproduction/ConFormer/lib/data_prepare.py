@@ -138,6 +138,9 @@ def get_dataloaders_from_index_data(
         if data.shape[-1] <= 3:
             raise ValueError("Accident embedding is enabled, but data has no accident channel at index 3.")
         features.append(3)
+    elif reg and data.shape[-1] > 3:
+        # Keep the raw channel layout stable because the model reads regulation at index 4.
+        features.append(3)
     if reg:
         if data.shape[-1] <= 4:
             raise ValueError("Region embedding is enabled, but data has no region channel at index 4.")

@@ -345,6 +345,8 @@ if __name__ == "__main__":
     context_channel_names = []
     if model_args.get("acc_embedding_dim", 0) > 0:
         context_channel_names.append("accident")
+    elif args.disable_accident and model_args.get("reg_embedding_dim", 0) > 0:
+        context_channel_names.append("accident_disabled")
     if model_args.get("reg_embedding_dim", 0) > 0:
         context_channel_names.append("region")
     print_log(log=log)
