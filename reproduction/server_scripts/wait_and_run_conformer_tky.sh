@@ -8,6 +8,7 @@ GPU_ID="${GPU_ID:-0}"
 FREE_MEMORY_MIN_PCT="${FREE_MEMORY_MIN_PCT:-50}"
 POLL_SECONDS="${POLL_SECONDS:-300}"
 DATASET="${DATASET:-tky}"
+EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 RUN_DIR="$PROJECT_DIR/reproduction/ConFormer/model"
 DATA_DIR="$PROJECT_DIR/reproduction/ConFormer/data/${DATASET^^}"
@@ -40,6 +41,9 @@ done
 
 cd "$RUN_DIR"
 echo "Starting ConFormer ${DATASET} official-style run." | tee -a "$RUN_LOG"
+if [[ -n "$EXTRA_ARGS" ]]; then
+  echo "Extra train.py args: $EXTRA_ARGS" | tee -a "$RUN_LOG"
+fi
 case "${DATASET,,}" in
   ba|sd)
     echo "Protocol note: paper-aligned BA/SD horizon=12/12, interval=15min, split=6:2:2, US Accidents enabled, regulation disabled." | tee -a "$RUN_LOG"
@@ -47,4 +51,4 @@ case "${DATASET,,}" in
     ;;
 esac
 CUDA_VISIBLE_DEVICES="$GPU_ID" "$CONDA_BIN" run -n "$CONDA_ENV" \
-  python train.py -d "$DATASET" -g 0 -m train 2>&1 | tee -a "$RUN_LOG"
+  python train.py -d "$DATASET" -g 0 -m train $EXTRA_ARGS 2>&1 | tee -a "$RUN_LOG"

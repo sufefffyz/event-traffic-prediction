@@ -257,6 +257,9 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--dataset", type=str, default="tky")
     parser.add_argument("-g", "--gpu_num", type=int, default=1)
     parser.add_argument("-m", "--mode", type=str, default='train')
+    parser.add_argument("--num_layers", type=int, default=None)
+    parser.add_argument("--disable_accident", action="store_true")
+    parser.add_argument("--run_tag", type=str, default="")
     args = parser.parse_args()
 
     seed = 2024
@@ -281,6 +284,18 @@ if __name__ == "__main__":
     model_args = dict(cfg["model_args"])
     if "adaptive_embedding_dim" in model_args:
         model_args.setdefault("node_embedding_dim", model_args.pop("adaptive_embedding_dim"))
+    override_notes = []
+    if args.num_layers is not None:
+        model_args["num_layers"] = args.num_layers
+        cfg["model_args"]["num_layers"] = args.num_layers
+        override_notes.append(f"CLI override: num_layers={args.num_layers}.")
+    if args.disable_accident:
+        model_args["acc_embedding_dim"] = 0
+        cfg["model_args"]["acc_embedding_dim"] = 0
+        override_notes.append("CLI ablation: accident embedding/data are disabled.")
+    if override_notes:
+        cfg.setdefault("protocol_notes", [])
+        cfg["protocol_notes"].extend(override_notes)
     model = ConFormer(**model_args)
     use_tod = cfg.get("time_of_day")
     if use_tod is None:
@@ -292,10 +307,18 @@ if __name__ == "__main__":
     # ------------------------------- make log file ------------------------------ #
 
     now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    variant_parts = []
+    if args.disable_accident:
+        variant_parts.append("noacc")
+    if args.num_layers is not None:
+        variant_parts.append(f"{args.num_layers}layer")
+    if args.run_tag:
+        variant_parts.append(args.run_tag)
+    variant_suffix = f"-{'-'.join(variant_parts)}" if variant_parts else ""
     log_path = f"../logs/"
     if not os.path.exists(log_path):
         os.makedirs(log_path)
-    log = os.path.join(log_path, f"{model_name}-{dataset}-{now}.log")
+    log = os.path.join(log_path, f"{model_name}-{dataset}{variant_suffix}-{now}.log")
     log = open(log, "a")
     log.seek(0)
     log.truncate()
@@ -333,7 +356,7 @@ if __name__ == "__main__":
         os.makedirs(save_path)
 
     if args.mode == 'train':
-        save = os.path.join(save_path, f"{model_name}-{dataset}-{now}.pt")
+        save = os.path.join(save_path, f"{model_name}-{dataset}{variant_suffix}-{now}.pt")
     elif args.mode == 'test':
         model_files = glob.glob(os.path.join(save_path, f"{model_name}-{dataset}-*.pt"))
         if not model_files:
@@ -412,7 +435,7 @@ if __name__ == "__main__":
 
     result_path = os.path.join(
         "../test_results",
-        f"{model_name}-{dataset}-{now}-test_result.npz",
+        f"{model_name}-{dataset}{variant_suffix}-{now}-test_result.npz",
     )
     test_model(
         model,

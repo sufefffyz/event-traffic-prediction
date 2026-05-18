@@ -47,6 +47,7 @@ def get_config():
     # Incident related parameters
     parser.add_argument('--icsf_dim', type=int, default=64)
     parser.add_argument('--module_name', type=str, default='igstgnn')
+    parser.add_argument('--run_tag', type=str, default='')
 
     # Incident decay parameters
     parser.add_argument('--lambda_incident', type=float, default=0.1, help='Incident influence weight')
@@ -55,15 +56,16 @@ def get_config():
 
     # Log directory configuration
     args.module_name = IGSTGNN.__module__.split('.')[-1]
+    tag_suffix = f"_{args.run_tag}" if args.run_tag else ""
     if args.use_sensor_info:
-        log_dir = './experiments/{}/{}_{}/'.format(
-            args.model_name, args.dataset, args.seed
+        log_dir = './experiments/{}/{}_{}{}/'.format(
+            args.model_name, args.dataset, args.seed, tag_suffix
         )
     else:
-        log_dir = './experiments/{}/{}_{}_nosensor/'.format(
-            args.model_name, args.dataset,  args.seed
+        log_dir = './experiments/{}/{}_{}_nosensor{}/'.format(
+            args.model_name, args.dataset,  args.seed, tag_suffix
         )
-    logger = get_logger(log_dir, __name__, 'record_{}_s{}.log'.format(args.module_name,args.seed))
+    logger = get_logger(log_dir, __name__, 'record_{}_s{}{}.log'.format(args.module_name,args.seed,tag_suffix))
     print("model_name", args.module_name)
     logger.info(args)
     

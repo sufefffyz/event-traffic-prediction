@@ -7,6 +7,8 @@ CONDA_ENV="${CONDA_ENV:-STGraph}"
 GPU_ID="${GPU_ID:-0}"
 FREE_MEMORY_MIN_PCT="${FREE_MEMORY_MIN_PCT:-50}"
 POLL_SECONDS="${POLL_SECONDS:-300}"
+USE_INCIDENT="${USE_INCIDENT:-1}"
+RUN_TAG="${RUN_TAG:-}"
 
 RUN_DIR="$PROJECT_DIR/reproduction/IGSTGNN"
 LOG_DIR="$RUN_DIR/experiments/IGSTGNN/server_logs"
@@ -19,6 +21,12 @@ mkdir -p "$LOG_DIR"
   echo "AI-supplemented preprocessing: the official repository trains from incident_data_train/val/test.npy and incident_data_stats.npz, but the public Kaggle archive provides incidents_traffic_data.npy. We reconstruct those split files only; model code and training entry stay official."
   echo "Split protocol: chronological 70%/15%/15%, matching the paper."
   echo "Training command mirrors experiments/IGSTGNN/run.sh except CUDA_VISIBLE_DEVICES maps requested GPU $GPU_ID to cuda:0."
+  if [[ "$USE_INCIDENT" != "1" ]]; then
+    echo "Ablation note: --incident is disabled for incident-module ablation."
+  fi
+  if [[ -n "$RUN_TAG" ]]; then
+    echo "Run tag: $RUN_TAG"
+  fi
 } | tee -a "$RUN_LOG"
 
 cd "$RUN_DIR"
@@ -47,6 +55,14 @@ while true; do
 done
 
 echo "Starting IGSTGNN Alameda paper-protocol run." | tee -a "$RUN_LOG"
+incident_args=()
+if [[ "$USE_INCIDENT" == "1" ]]; then
+  incident_args+=(--incident)
+fi
+tag_args=()
+if [[ -n "$RUN_TAG" ]]; then
+  tag_args+=(--run_tag "$RUN_TAG")
+fi
 CUDA_VISIBLE_DEVICES="$GPU_ID" "$CONDA_BIN" run -n "$CONDA_ENV" \
   python experiments/IGSTGNN/main.py \
     --device cuda:0 \
@@ -54,5 +70,6 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" "$CONDA_BIN" run -n "$CONDA_ENV" \
     --model_name igstgnn \
     --seed 2025 \
     --bs 48 \
-    --incident \
-    --use_sensor_info 2>&1 | tee -a "$RUN_LOG"
+    "${incident_args[@]}" \
+    --use_sensor_info \
+    "${tag_args[@]}" 2>&1 | tee -a "$RUN_LOG"
