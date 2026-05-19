@@ -66,6 +66,10 @@ class D2STGNN(nn.Module):
         self._num_layers = model_args.get('num_layers', 5)
         self._time_in_day_size = model_args['time_in_day_size']
         self._day_in_week_size = model_args['day_in_week_size']
+        self._day_in_week_normalized = model_args.get(
+            'day_in_week_normalized',
+            model_args.get('day_of_week_normalized', True),
+        )
 
         model_args['use_pre'] = False
         model_args['dy_graph'] = True
@@ -117,7 +121,7 @@ class D2STGNN(nn.Module):
         return idx.long().clamp_(0, self._time_in_day_size - 1)
 
     def _day_index(self, raw: torch.Tensor) -> torch.Tensor:
-        if torch.max(raw).detach() <= 1.0 + 1e-6:
+        if self._day_in_week_normalized:
             raw = raw * self._day_in_week_size
         return raw.long().clamp_(0, self._day_in_week_size - 1)
 

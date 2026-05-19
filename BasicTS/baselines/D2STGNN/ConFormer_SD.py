@@ -54,6 +54,7 @@ MODEL_PARAM = {
     "time_emb_dim": 10,
     "time_in_day_size": TIME_OF_DAY_SIZE,
     "day_in_week_size": DAY_OF_WEEK_SIZE,
+    "day_in_week_normalized": False,
 }
 
 CFG = EasyDict()

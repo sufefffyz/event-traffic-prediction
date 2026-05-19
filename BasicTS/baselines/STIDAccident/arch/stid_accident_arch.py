@@ -20,6 +20,7 @@ class STIDAccident(nn.Module):
         self.temp_dim_diw = model_args["temp_dim_diw"]
         self.time_of_day_size = model_args["time_of_day_size"]
         self.day_of_week_size = model_args["day_of_week_size"]
+        self.day_of_week_normalized = model_args.get("day_of_week_normalized", True)
         self.if_time_in_day = model_args["if_T_i_D"]
         self.if_day_in_week = model_args["if_D_i_W"]
         self.if_spatial = model_args["if_node"]
@@ -75,7 +76,7 @@ class STIDAccident(nn.Module):
         return idx.long().clamp_(0, self.time_of_day_size - 1)
 
     def _day_index(self, raw: torch.Tensor) -> torch.Tensor:
-        if torch.max(raw).detach() <= 1.0 + 1e-6:
+        if self.day_of_week_normalized:
             raw = raw * self.day_of_week_size
         return raw.long().clamp_(0, self.day_of_week_size - 1)
 

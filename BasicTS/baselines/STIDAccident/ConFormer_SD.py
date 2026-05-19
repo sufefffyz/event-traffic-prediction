@@ -43,6 +43,7 @@ MODEL_PARAM = {
     "temp_dim_diw": 32,
     "time_of_day_size": TIME_OF_DAY_SIZE,
     "day_of_week_size": DAY_OF_WEEK_SIZE,
+    "day_of_week_normalized": False,
     "if_accident": True,
     "accident_dim": 32,
     "accident_feature_index": 3,
