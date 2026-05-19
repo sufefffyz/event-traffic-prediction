@@ -15,6 +15,7 @@ class WandBTimeSeriesForecastingRunner(SimpleTimeSeriesForecastingRunner):
         self.model_name = cfg["MODEL"]["NAME"]
         self.dataset_name = cfg["DATASET"]["NAME"]
         self._wandb_initialized = False
+        self._wandb_test_step = 0
         self.wandb_cfg = cfg.get("WANDB", {})
 
     def init_validation(self, cfg: Dict):
@@ -86,7 +87,7 @@ class WandBTimeSeriesForecastingRunner(SimpleTimeSeriesForecastingRunner):
 
     def on_test_end(self) -> None:
         super().on_test_end()
-        step = getattr(self, "start_epoch", 0) or 0
+        step = self._wandb_test_step
         self._wandb_log_metrics("test", ["loss", *self.metrics.keys()], step)
         if len(self.evaluation_horizons) > 0:
             payload = {}
@@ -101,6 +102,10 @@ class WandBTimeSeriesForecastingRunner(SimpleTimeSeriesForecastingRunner):
                 wandb.log(payload, step=step)
                 for key, value in payload.items():
                     wandb.run.summary[key] = value
+
+    def test_pipeline(self, *args, train_epoch: Optional[int] = None, **kwargs):
+        self._wandb_test_step = train_epoch if train_epoch is not None else 0
+        return super().test_pipeline(*args, train_epoch=train_epoch, **kwargs)
 
     def on_training_end(self, cfg: Dict, train_epoch: Optional[int] = None):
         super().on_training_end(cfg, train_epoch)
