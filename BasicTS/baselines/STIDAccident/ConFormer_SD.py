@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(__file__ + "/../../.."))
 
 from basicts.data.indexed_npz_tsf_dataset import IndexedNPZForecastingDataset
 from basicts.metrics import masked_mae, masked_mape, masked_rmse
-from basicts.runners import SimpleTimeSeriesForecastingRunner
+from basicts.runners import WandBTimeSeriesForecastingRunner
 from basicts.scaler.indexed_npz_scaler import IndexedNPZStandardScaler
 
 from .arch import STIDAccident
@@ -55,7 +55,13 @@ CFG.DESCRIPTION = (
     "Split follows ConFormer index.npz; metrics use BasicTS masked MAE/MAPE/RMSE."
 )
 CFG.GPU_NUM = 1
-CFG.RUNNER = SimpleTimeSeriesForecastingRunner
+CFG.RUNNER = WandBTimeSeriesForecastingRunner
+
+CFG.WANDB = EasyDict()
+CFG.WANDB.PROJECT = "event-traffic-prediction"
+CFG.WANDB.GROUP = "ConFormer_SD_BasicTS"
+CFG.WANDB.RUN_NAME = "STIDAccident_ConFormer_SD_seed42"
+CFG.WANDB.TAGS = ["ConFormer_SD", "STIDAccident", "basicts", "seed42"]
 
 CFG.ENV = EasyDict()
 CFG.ENV.SEED = SEED
