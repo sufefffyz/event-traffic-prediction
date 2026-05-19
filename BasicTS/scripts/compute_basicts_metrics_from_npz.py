@@ -2,10 +2,13 @@
 import argparse
 import json
 import os
+import sys
 from typing import Dict, Iterable, Tuple
 
 import numpy as np
 import torch
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from basicts.metrics import masked_mae, masked_mape, masked_rmse
 
