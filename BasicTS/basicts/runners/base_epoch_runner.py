@@ -875,7 +875,12 @@ class BaseEpochRunner(metaclass=ABCMeta):
         self.optim.zero_grad()
         loss.backward()
         if self.clip_grad_param is not None:
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), **self.clip_grad_param)
+            clip_grad_param = dict(self.clip_grad_param)
+            clip_grad_method = clip_grad_param.pop('method', 'norm')
+            if clip_grad_method == 'value':
+                torch.nn.utils.clip_grad_value_(self.model.parameters(), **clip_grad_param)
+            else:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), **clip_grad_param)
         self.optim.step()
 
     @master_only

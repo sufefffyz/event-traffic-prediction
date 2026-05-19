@@ -50,8 +50,8 @@ MODEL_PARAM = {
     "adjs": [torch.tensor(adj, dtype=torch.float32) for adj in adj_mx],
     "num_layers": 5,
     "num_modalities": 2,
-    "node_hidden": 10,
-    "time_emb_dim": 10,
+    "node_hidden": 12,
+    "time_emb_dim": 12,
     "time_in_day_size": TIME_OF_DAY_SIZE,
     "day_in_week_size": DAY_OF_WEEK_SIZE,
     "day_in_week_normalized": False,
@@ -61,6 +61,8 @@ CFG = EasyDict()
 CFG.DESCRIPTION = (
     "D2STGNN on ConFormer SD. Split follows ConFormer index.npz; "
     "traffic scaler and metrics match the STIDAccident ConFormer_SD run. "
+    "D2STGNN hyperparameters follow the LargeST implementation except "
+    "for unified seed/epoch settings. "
     f"Adjacency: {GRAPH_FILE_PATH}"
 )
 CFG.GPU_NUM = 1
@@ -69,8 +71,8 @@ CFG.RUNNER = WandBTimeSeriesForecastingRunner
 CFG.WANDB = EasyDict()
 CFG.WANDB.PROJECT = "event-traffic-prediction"
 CFG.WANDB.GROUP = "ConFormer_SD_BasicTS"
-CFG.WANDB.RUN_NAME = "D2STGNN_ConFormer_SD_seed42"
-CFG.WANDB.TAGS = ["ConFormer_SD", "D2STGNN", "basicts", "seed42"]
+CFG.WANDB.RUN_NAME = "D2STGNN_ConFormer_SD_seed42_largest_hparams"
+CFG.WANDB.TAGS = ["ConFormer_SD", "D2STGNN", "basicts", "seed42", "largest_hparams"]
 
 CFG.ENV = EasyDict()
 CFG.ENV.SEED = SEED
@@ -128,22 +130,22 @@ CFG.TRAIN.NUM_EPOCHS = NUM_EPOCHS
 CFG.TRAIN.CKPT_SAVE_DIR = os.path.join(
     "checkpoints",
     MODEL_ARCH.__name__,
-    "_".join([DATA_NAME, str(NUM_EPOCHS), str(INPUT_LEN), str(OUTPUT_LEN), "largest_adj"]),
+    "_".join([DATA_NAME, str(NUM_EPOCHS), str(INPUT_LEN), str(OUTPUT_LEN), "largest_hparams_adj"]),
 )
 CFG.TRAIN.LOSS = partial(masked_mae, null_val=NULL_VAL)
 CFG.TRAIN.OPTIM = EasyDict()
 CFG.TRAIN.OPTIM.TYPE = "Adam"
-CFG.TRAIN.OPTIM.PARAM = {"lr": 0.002, "weight_decay": 0.0001}
+CFG.TRAIN.OPTIM.PARAM = {"lr": 0.002, "weight_decay": 1.0e-5, "eps": 1.0e-8}
 CFG.TRAIN.LR_SCHEDULER = EasyDict()
 CFG.TRAIN.LR_SCHEDULER.TYPE = "MultiStepLR"
-CFG.TRAIN.LR_SCHEDULER.PARAM = {"milestones": [1, 30, 60, 80], "gamma": 0.5}
-CFG.TRAIN.CLIP_GRAD_PARAM = {"max_norm": 5.0}
+CFG.TRAIN.LR_SCHEDULER.PARAM = {"milestones": [1, 38, 46, 54, 62, 70, 80], "gamma": 0.5}
+CFG.TRAIN.CLIP_GRAD_PARAM = {"method": "value", "clip_value": 5.0}
 CFG.TRAIN.DATA = EasyDict()
-CFG.TRAIN.DATA.BATCH_SIZE = 32
+CFG.TRAIN.DATA.BATCH_SIZE = 64
 CFG.TRAIN.DATA.SHUFFLE = True
 CFG.TRAIN.CL = EasyDict()
-CFG.TRAIN.CL.WARM_EPOCHS = 0
-CFG.TRAIN.CL.CL_EPOCHS = 6
+CFG.TRAIN.CL.WARM_EPOCHS = 30
+CFG.TRAIN.CL.CL_EPOCHS = 3
 CFG.TRAIN.CL.PREDICTION_LENGTH = OUTPUT_LEN
 
 CFG.VAL = EasyDict()
