@@ -62,6 +62,15 @@ class STID(nn.Module):
         self.regression_layer = nn.Conv2d(
             in_channels=self.hidden_dim, out_channels=self.output_len, kernel_size=(1, 1), bias=True)
 
+    def _time_index(self, raw: torch.Tensor) -> torch.Tensor:
+        idx = raw * self.time_of_day_size
+        return idx.long().clamp_(0, self.time_of_day_size - 1)
+
+    def _day_index(self, raw: torch.Tensor) -> torch.Tensor:
+        if torch.max(raw).detach() <= 1.0 + 1e-6:
+            raw = raw * self.day_of_week_size
+        return raw.long().clamp_(0, self.day_of_week_size - 1)
+
     def forward(self, history_data: torch.Tensor, future_data: torch.Tensor, batch_seen: int, epoch: int, train: bool, **kwargs) -> torch.Tensor:
         """Feed forward of STID.
 
@@ -77,14 +86,12 @@ class STID(nn.Module):
 
         if self.if_time_in_day:
             t_i_d_data = history_data[..., 1]
-            # In the datasets used in STID, the time_of_day feature is normalized to [0, 1]. We multiply it by 288 to get the index.
-            # If you use other datasets, you may need to change this line.
-            time_in_day_emb = self.time_in_day_emb[(t_i_d_data[:, -1, :] * self.time_of_day_size).type(torch.LongTensor)]
+            time_in_day_emb = self.time_in_day_emb[self._time_index(t_i_d_data[:, -1, :])]
         else:
             time_in_day_emb = None
         if self.if_day_in_week:
             d_i_w_data = history_data[..., 2]
-            day_in_week_emb = self.day_in_week_emb[(d_i_w_data[:, -1, :] * self.day_of_week_size).type(torch.LongTensor)]
+            day_in_week_emb = self.day_in_week_emb[self._day_index(d_i_w_data[:, -1, :])]
         else:
             day_in_week_emb = None
 

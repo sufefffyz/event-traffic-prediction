@@ -1,17 +1,20 @@
 import os
 import sys
 from functools import partial
+from pathlib import Path
 
+import torch
 from easydict import EasyDict
 
 sys.path.append(os.path.abspath(__file__ + "/../../.."))
 
 from basicts.data.indexed_npz_tsf_dataset import IndexedNPZForecastingDataset
 from basicts.metrics import masked_mae, masked_mape, masked_rmse
-from basicts.runners import SimpleTimeSeriesForecastingRunner
+from basicts.runners import WandBTimeSeriesForecastingRunner
 from basicts.scaler.indexed_npz_scaler import IndexedNPZStandardScaler
+from basicts.utils import load_adj
 
-from .arch import STIDAccident
+from .arch import D2STGNN
 
 DATA_NAME = "ConFormer_SD"
 INPUT_LEN = 12
@@ -27,34 +30,46 @@ SEED = 42
 DATA_FILE_PATH = "../reproduction/ConFormer/data/SD/data.npz"
 INDEX_FILE_PATH = "../reproduction/ConFormer/data/SD/index.npz"
 
-MODEL_ARCH = STIDAccident
+STPROJECT_ROOT = Path(__file__).resolve().parents[4]
+GRAPH_FILE_PATH = os.environ.get(
+    "CONFORMER_SD_ADJ_PATH",
+    str(STPROJECT_ROOT / "SpatialTemporalGraph" / "BasicTS" / "datasets" / "SD" / "adj_mx.pkl"),
+)
+
+MODEL_ARCH = D2STGNN
+adj_mx, _ = load_adj(GRAPH_FILE_PATH, "doubletransition")
 MODEL_PARAM = {
+    "num_feat": 1,
+    "num_hidden": 32,
+    "dropout": 0.1,
+    "seq_length": INPUT_LEN,
+    "k_t": 3,
+    "k_s": 2,
+    "gap": 3,
     "num_nodes": NUM_NODES,
-    "input_len": INPUT_LEN,
-    "input_dim": 3,
-    "embed_dim": 32,
-    "output_len": OUTPUT_LEN,
-    "num_layer": 4,
-    "if_node": True,
-    "node_dim": 64,
-    "if_T_i_D": True,
-    "if_D_i_W": True,
-    "temp_dim_tid": 32,
-    "temp_dim_diw": 32,
-    "time_of_day_size": TIME_OF_DAY_SIZE,
-    "day_of_week_size": DAY_OF_WEEK_SIZE,
-    "if_accident": True,
-    "accident_dim": 32,
-    "accident_feature_index": 3,
+    "adjs": [torch.tensor(adj, dtype=torch.float32) for adj in adj_mx],
+    "num_layers": 5,
+    "num_modalities": 2,
+    "node_hidden": 10,
+    "time_emb_dim": 10,
+    "time_in_day_size": TIME_OF_DAY_SIZE,
+    "day_in_week_size": DAY_OF_WEEK_SIZE,
 }
 
 CFG = EasyDict()
 CFG.DESCRIPTION = (
-    "Minimal STID + binary accident embedding on ConFormer SD. "
-    "Split follows ConFormer index.npz; metrics use BasicTS masked MAE/MAPE/RMSE."
+    "D2STGNN on ConFormer SD. Split follows ConFormer index.npz; "
+    "traffic scaler and metrics match the STIDAccident ConFormer_SD run. "
+    f"Adjacency: {GRAPH_FILE_PATH}"
 )
 CFG.GPU_NUM = 1
-CFG.RUNNER = SimpleTimeSeriesForecastingRunner
+CFG.RUNNER = WandBTimeSeriesForecastingRunner
+
+CFG.WANDB = EasyDict()
+CFG.WANDB.PROJECT = "event-traffic-prediction"
+CFG.WANDB.GROUP = "ConFormer_SD_BasicTS"
+CFG.WANDB.RUN_NAME = "D2STGNN_ConFormer_SD_seed42"
+CFG.WANDB.TAGS = ["ConFormer_SD", "D2STGNN", "basicts", "seed42"]
 
 CFG.ENV = EasyDict()
 CFG.ENV.SEED = SEED
@@ -93,7 +108,7 @@ CFG.MODEL = EasyDict()
 CFG.MODEL.NAME = MODEL_ARCH.__name__
 CFG.MODEL.ARCH = MODEL_ARCH
 CFG.MODEL.PARAM = MODEL_PARAM
-CFG.MODEL.FORWARD_FEATURES = [0, 1, 2, 3]
+CFG.MODEL.FORWARD_FEATURES = [0, 1, 2]
 CFG.MODEL.TARGET_FEATURES = [0]
 
 CFG.METRICS = EasyDict()
@@ -112,7 +127,7 @@ CFG.TRAIN.NUM_EPOCHS = NUM_EPOCHS
 CFG.TRAIN.CKPT_SAVE_DIR = os.path.join(
     "checkpoints",
     MODEL_ARCH.__name__,
-    "_".join([DATA_NAME, str(NUM_EPOCHS), str(INPUT_LEN), str(OUTPUT_LEN), "accident"]),
+    "_".join([DATA_NAME, str(NUM_EPOCHS), str(INPUT_LEN), str(OUTPUT_LEN), "largest_adj"]),
 )
 CFG.TRAIN.LOSS = partial(masked_mae, null_val=NULL_VAL)
 CFG.TRAIN.OPTIM = EasyDict()
@@ -125,6 +140,10 @@ CFG.TRAIN.CLIP_GRAD_PARAM = {"max_norm": 5.0}
 CFG.TRAIN.DATA = EasyDict()
 CFG.TRAIN.DATA.BATCH_SIZE = 32
 CFG.TRAIN.DATA.SHUFFLE = True
+CFG.TRAIN.CL = EasyDict()
+CFG.TRAIN.CL.WARM_EPOCHS = 0
+CFG.TRAIN.CL.CL_EPOCHS = 6
+CFG.TRAIN.CL.PREDICTION_LENGTH = OUTPUT_LEN
 
 CFG.VAL = EasyDict()
 CFG.VAL.INTERVAL = 1
@@ -138,5 +157,5 @@ CFG.TEST.DATA.BATCH_SIZE = 64
 
 CFG.EVAL = EasyDict()
 CFG.EVAL.HORIZONS = [3, 6, 12]
-CFG.EVAL.USE_GPU = False
+CFG.EVAL.USE_GPU = True
 CFG.EVAL.SAVE_RESULTS = True

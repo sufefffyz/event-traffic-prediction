@@ -63,7 +63,7 @@ class D2STGNN(nn.Module):
         self._num_nodes = model_args['num_nodes']
         self._k_s = model_args['k_s']
         self._k_t = model_args['k_t']
-        self._num_layers = 5
+        self._num_layers = model_args.get('num_layers', 5)
         self._time_in_day_size = model_args['time_in_day_size']
         self._day_in_week_size = model_args['day_in_week_size']
 
@@ -78,9 +78,9 @@ class D2STGNN(nn.Module):
 
         # time embedding
         self.T_i_D_emb = nn.Parameter(
-            torch.empty(288, model_args['time_emb_dim']))
+            torch.empty(self._time_in_day_size, model_args['time_emb_dim']))
         self.D_i_W_emb = nn.Parameter(
-            torch.empty(7, model_args['time_emb_dim']))
+            torch.empty(self._day_in_week_size, model_args['time_emb_dim']))
 
         # Decoupled Spatial Temporal Layer
         self.layers = nn.ModuleList([DecoupleLayer(
@@ -112,6 +112,15 @@ class D2STGNN(nn.Module):
         nn.init.xavier_uniform_(self.T_i_D_emb)
         nn.init.xavier_uniform_(self.D_i_W_emb)
 
+    def _time_index(self, raw: torch.Tensor) -> torch.Tensor:
+        idx = raw * self._time_in_day_size
+        return idx.long().clamp_(0, self._time_in_day_size - 1)
+
+    def _day_index(self, raw: torch.Tensor) -> torch.Tensor:
+        if torch.max(raw).detach() <= 1.0 + 1e-6:
+            raw = raw * self._day_in_week_size
+        return raw.long().clamp_(0, self._day_in_week_size - 1)
+
     def _graph_constructor(self, **inputs):
         E_d = inputs['E_d']
         E_u = inputs['E_u']
@@ -132,11 +141,9 @@ class D2STGNN(nn.Module):
         node_emb_d = self.node_emb_d  # [N, d]
         # time slot embedding
         # [B, L, N, d]
-        # In the datasets used in D2STGNN, the time_of_day feature is normalized to [0, 1]. We multiply it by 288 to get the index.
-        # If you use other datasets, you may need to change this line.
-        T_i_D = self.T_i_D_emb[(X[:, :, :, num_feat] * self._time_in_day_size).type(torch.LongTensor)]
+        T_i_D = self.T_i_D_emb[self._time_index(X[:, :, :, num_feat])]
         # [B, L, N, d]
-        D_i_W = self.D_i_W_emb[(X[:, :, :, num_feat+1] * self._day_in_week_size).type(torch.LongTensor)]
+        D_i_W = self.D_i_W_emb[self._day_index(X[:, :, :, num_feat+1])]
         # traffic signals
         X = X[:, :, :, :num_feat]
 

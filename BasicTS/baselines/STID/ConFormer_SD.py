@@ -8,10 +8,10 @@ sys.path.append(os.path.abspath(__file__ + "/../../.."))
 
 from basicts.data.indexed_npz_tsf_dataset import IndexedNPZForecastingDataset
 from basicts.metrics import masked_mae, masked_mape, masked_rmse
-from basicts.runners import SimpleTimeSeriesForecastingRunner
+from basicts.runners import WandBTimeSeriesForecastingRunner
 from basicts.scaler.indexed_npz_scaler import IndexedNPZStandardScaler
 
-from .arch import STIDAccident
+from .arch import STID
 
 DATA_NAME = "ConFormer_SD"
 INPUT_LEN = 12
@@ -27,7 +27,7 @@ SEED = 42
 DATA_FILE_PATH = "../reproduction/ConFormer/data/SD/data.npz"
 INDEX_FILE_PATH = "../reproduction/ConFormer/data/SD/index.npz"
 
-MODEL_ARCH = STIDAccident
+MODEL_ARCH = STID
 MODEL_PARAM = {
     "num_nodes": NUM_NODES,
     "input_len": INPUT_LEN,
@@ -43,18 +43,21 @@ MODEL_PARAM = {
     "temp_dim_diw": 32,
     "time_of_day_size": TIME_OF_DAY_SIZE,
     "day_of_week_size": DAY_OF_WEEK_SIZE,
-    "if_accident": True,
-    "accident_dim": 32,
-    "accident_feature_index": 3,
 }
 
 CFG = EasyDict()
 CFG.DESCRIPTION = (
-    "Minimal STID + binary accident embedding on ConFormer SD. "
-    "Split follows ConFormer index.npz; metrics use BasicTS masked MAE/MAPE/RMSE."
+    "Pure STID on ConFormer SD. Split follows ConFormer index.npz; "
+    "traffic scaler and metrics match the STIDAccident ConFormer_SD run."
 )
 CFG.GPU_NUM = 1
-CFG.RUNNER = SimpleTimeSeriesForecastingRunner
+CFG.RUNNER = WandBTimeSeriesForecastingRunner
+
+CFG.WANDB = EasyDict()
+CFG.WANDB.PROJECT = "event-traffic-prediction"
+CFG.WANDB.GROUP = "ConFormer_SD_BasicTS"
+CFG.WANDB.RUN_NAME = "STID_ConFormer_SD_seed42"
+CFG.WANDB.TAGS = ["ConFormer_SD", "STID", "basicts", "seed42"]
 
 CFG.ENV = EasyDict()
 CFG.ENV.SEED = SEED
@@ -93,7 +96,7 @@ CFG.MODEL = EasyDict()
 CFG.MODEL.NAME = MODEL_ARCH.__name__
 CFG.MODEL.ARCH = MODEL_ARCH
 CFG.MODEL.PARAM = MODEL_PARAM
-CFG.MODEL.FORWARD_FEATURES = [0, 1, 2, 3]
+CFG.MODEL.FORWARD_FEATURES = [0, 1, 2]
 CFG.MODEL.TARGET_FEATURES = [0]
 
 CFG.METRICS = EasyDict()
@@ -112,7 +115,7 @@ CFG.TRAIN.NUM_EPOCHS = NUM_EPOCHS
 CFG.TRAIN.CKPT_SAVE_DIR = os.path.join(
     "checkpoints",
     MODEL_ARCH.__name__,
-    "_".join([DATA_NAME, str(NUM_EPOCHS), str(INPUT_LEN), str(OUTPUT_LEN), "accident"]),
+    "_".join([DATA_NAME, str(NUM_EPOCHS), str(INPUT_LEN), str(OUTPUT_LEN), "pure"]),
 )
 CFG.TRAIN.LOSS = partial(masked_mae, null_val=NULL_VAL)
 CFG.TRAIN.OPTIM = EasyDict()
