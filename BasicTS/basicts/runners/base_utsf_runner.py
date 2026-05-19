@@ -468,15 +468,17 @@ class BaseUniversalTimeSeriesForecastingRunner(BaseIterationRunner):
                                     shape=(total_samples, *batch_data['prediction'].shape[1:]))
             self._target_memmap = np.memmap(tgt_path, dtype=batch_data['target'].dtype, mode='w+',
                                 shape=(total_samples, *batch_data['target'].shape[1:]))
+            self._test_result_write_offset = 0
 
-        start = batch_idx * batch_data['inputs'].shape[0]
+        start = self._test_result_write_offset
         end = start + batch_data['inputs'].shape[0]
 
         self._inputs_memmap[start:end] = batch_data['inputs']
         self._prediction_memmap[start:end] = batch_data['prediction']
         self._target_memmap[start:end] = batch_data['target']
+        self._test_result_write_offset = end
 
-        if batch_idx == (total_samples // batch_data['inputs'].shape[0]):
+        if end >= total_samples:
             self._inputs_memmap.flush()
             self._prediction_memmap.flush()
             self._target_memmap.flush()
