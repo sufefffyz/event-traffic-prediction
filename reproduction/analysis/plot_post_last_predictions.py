@@ -120,8 +120,13 @@ def ensure_4d(array: np.ndarray) -> np.ndarray:
 
 def load_prediction_result(path: Path) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     if path.is_dir():
-        prediction = np.load(path / "prediction.npy")
+        prediction_path = path / "prediction.npy"
+        if not prediction_path.exists():
+            prediction_path = path / "predictions.npy"
         target_path = path / "target.npy"
+        if not target_path.exists():
+            target_path = path / "targets.npy"
+        prediction = np.load(prediction_path)
         target = np.load(target_path) if target_path.exists() else None
     elif path.suffix == ".npz":
         data = np.load(path)
