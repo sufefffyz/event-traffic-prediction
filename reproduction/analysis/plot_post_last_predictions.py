@@ -118,7 +118,23 @@ def ensure_4d(array: np.ndarray) -> np.ndarray:
     raise ValueError(f"Expected 3D or 4D array, got shape {array.shape}")
 
 
-def load_prediction_result(path: Path) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+def load_array(path: Path, expected_shape: Optional[Tuple[int, ...]] = None) -> np.ndarray:
+    try:
+        return np.load(path)
+    except ValueError as exc:
+        if "pickled data" not in str(exc) or expected_shape is None:
+            raise
+        expected_bytes = int(np.prod(expected_shape)) * np.dtype(np.float32).itemsize
+        actual_bytes = path.stat().st_size
+        if actual_bytes != expected_bytes:
+            raise ValueError(
+                f"{path} looks like a raw memmap, but size {actual_bytes} "
+                f"does not match expected shape {expected_shape} ({expected_bytes} bytes)"
+            ) from exc
+        return np.memmap(path, dtype=np.float32, mode="r", shape=expected_shape)
+
+
+def load_prediction_result(path: Path, expected_shape: Optional[Tuple[int, ...]] = None) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     if path.is_dir():
         prediction_path = path / "prediction.npy"
         if not prediction_path.exists():
@@ -126,8 +142,8 @@ def load_prediction_result(path: Path) -> Tuple[np.ndarray, Optional[np.ndarray]
         target_path = path / "target.npy"
         if not target_path.exists():
             target_path = path / "targets.npy"
-        prediction = np.load(prediction_path)
-        target = np.load(target_path) if target_path.exists() else None
+        prediction = load_array(prediction_path, expected_shape)
+        target = load_array(target_path, expected_shape) if target_path.exists() else None
     elif path.suffix == ".npz":
         data = np.load(path)
         pred_key = "prediction" if "prediction" in data.files else "predictions"
@@ -410,7 +426,8 @@ def main() -> None:
         if not result_path.exists():
             skipped[label] = f"missing: {result_path}"
             continue
-        prediction, target = load_prediction_result(result_path)
+        expected_shape = (len(index), spec.out_steps, speed.shape[1], 1)
+        prediction, target = load_prediction_result(result_path, expected_shape=expected_shape)
         if prediction.shape[:3] != (len(index), spec.out_steps, speed.shape[1]):
             skipped[label] = f"shape mismatch: prediction {prediction.shape}, expected {(len(index), spec.out_steps, speed.shape[1])}"
             continue
