@@ -2,7 +2,7 @@
 
 The post-last slice follows the TraffiDent-style audit used in this project:
 an event is active at the last history slot, and the model forecasts the next
-future window. The script plots raw history/future speeds from the dataset and
+future window. The script plots raw history/future traffic-flow values from the dataset and
 overlays predictions saved by ConFormer or BasicTS.
 """
 
@@ -157,16 +157,16 @@ def load_prediction_result(path: Path, expected_shape: Optional[Tuple[int, ...]]
 def load_dataset(data_root: Path, spec: DatasetSpec) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[pd.DatetimeIndex]]:
     data_dir = data_root / spec.name
     data = np.load(data_dir / "data.npz")["data"].astype(np.float32, copy=False)
-    speed = data[..., 0].astype(np.float32, copy=False)
+    traffic = data[..., 0].astype(np.float32, copy=False)
     event = None
     if spec.event_channel is not None and data.shape[-1] > spec.event_channel:
         event = data[..., spec.event_channel].astype(np.float32, copy=False)
     accident_h5 = data_dir / "accident.h5"
     if event is None and accident_h5.exists():
         event = read_hdf_dataframe(accident_h5).values.astype(np.float32, copy=False)
-        common_t = min(speed.shape[0], event.shape[0])
-        common_n = min(speed.shape[1], event.shape[1])
-        speed = speed[:common_t, :common_n]
+        common_t = min(traffic.shape[0], event.shape[0])
+        common_n = min(traffic.shape[1], event.shape[1])
+        traffic = traffic[:common_t, :common_n]
         event = event[:common_t, :common_n]
     if event is None:
         raise ValueError(f"{data_dir} has no usable event channel or accident.h5")
@@ -175,8 +175,8 @@ def load_dataset(data_root: Path, spec: DatasetSpec) -> Tuple[np.ndarray, np.nda
     time_index = None
     h5_path = data_dir / "data.h5"
     if h5_path.exists():
-        time_index = read_hdf_dataframe(h5_path).index[: speed.shape[0]]
-    return speed, event, index, time_index
+        time_index = read_hdf_dataframe(h5_path).index[: traffic.shape[0]]
+    return traffic, event, index, time_index
 
 
 def relative_x_positions(in_steps: int, out_steps: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -194,11 +194,11 @@ def event_relative_values(event: np.ndarray, row: np.ndarray, node: np.ndarray, 
     return np.concatenate([hist, fut], axis=1)
 
 
-def speed_relative_values(speed: np.ndarray, row: np.ndarray, node: np.ndarray, index: np.ndarray, in_steps: int, out_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+def traffic_relative_values(traffic: np.ndarray, row: np.ndarray, node: np.ndarray, index: np.ndarray, in_steps: int, out_steps: int) -> Tuple[np.ndarray, np.ndarray]:
     starts = index[row, 0]
     mids = index[row, 1]
-    hist = np.stack([speed[starts + lag, node] for lag in range(in_steps)], axis=1)
-    fut = np.stack([speed[mids + lag, node] for lag in range(out_steps)], axis=1)
+    hist = np.stack([traffic[starts + lag, node] for lag in range(in_steps)], axis=1)
+    fut = np.stack([traffic[mids + lag, node] for lag in range(out_steps)], axis=1)
     return hist, fut
 
 
@@ -222,7 +222,7 @@ def model_case_metrics(predictions: Dict[str, np.ndarray], row: np.ndarray, node
 def select_cases(
     rows: np.ndarray,
     nodes: np.ndarray,
-    speed: np.ndarray,
+    traffic: np.ndarray,
     event: np.ndarray,
     index: np.ndarray,
     predictions: Dict[str, np.ndarray],
@@ -231,7 +231,7 @@ def select_cases(
     num_cases: int,
     mode: str,
 ) -> Tuple[List[int], Dict[str, np.ndarray], np.ndarray, np.ndarray, np.ndarray]:
-    hist, fut = speed_relative_values(speed, rows, nodes, index, in_steps, out_steps)
+    hist, fut = traffic_relative_values(traffic, rows, nodes, index, in_steps, out_steps)
     event_rel = event_relative_values(event, rows, nodes, index, in_steps, out_steps)
     metrics = model_case_metrics(predictions, rows, nodes, fut)
     if mode == "top_drop":
@@ -267,7 +267,7 @@ def plot_case(
     case_rank: int,
     sample_idx: int,
     node_idx: int,
-    speed: np.ndarray,
+    traffic: np.ndarray,
     event: np.ndarray,
     index: np.ndarray,
     predictions: Dict[str, np.ndarray],
@@ -276,8 +276,8 @@ def plot_case(
 ) -> None:
     start, mid, end = index[sample_idx]
     hist_x, fut_x, full_x = relative_x_positions(spec.in_steps, spec.out_steps)
-    history = speed[start:mid, node_idx]
-    future = speed[mid:end, node_idx]
+    history = traffic[start:mid, node_idx]
+    future = traffic[mid:end, node_idx]
     event_values = event[start:end, node_idx]
 
     fig, ax = plt.subplots(figsize=(7.2, 3.8))
@@ -292,7 +292,7 @@ def plot_case(
 
     ax.axvline(0.5, color=COLORS["boundary"], linestyle="--", linewidth=1.0, alpha=0.7)
     ax.set_xlabel("relative slot (0 = last history slot)")
-    ax.set_ylabel("speed")
+    ax.set_ylabel("traffic flow")
     title = (
         f"{spec.name} post-last case {case_rank}: sample={sample_idx}, node={node_idx}, "
         f"target start={timestamp_at(time_index, int(mid))}"
@@ -311,14 +311,14 @@ def plot_mean_curve(
     output_dir: Path,
     rows: np.ndarray,
     nodes: np.ndarray,
-    speed: np.ndarray,
+    traffic: np.ndarray,
     event: np.ndarray,
     index: np.ndarray,
     predictions: Dict[str, np.ndarray],
     spec: DatasetSpec,
 ) -> None:
     hist_x, fut_x, full_x = relative_x_positions(spec.in_steps, spec.out_steps)
-    hist, fut = speed_relative_values(speed, rows, nodes, index, spec.in_steps, spec.out_steps)
+    hist, fut = traffic_relative_values(traffic, rows, nodes, index, spec.in_steps, spec.out_steps)
     event_rel = event_relative_values(event, rows, nodes, index, spec.in_steps, spec.out_steps)
     event_fraction = (event_rel > 0).mean(axis=0)
 
@@ -337,7 +337,7 @@ def plot_mean_curve(
         ax.plot(fut_x, pred_mean, linewidth=1.9, marker=".", markersize=4.0, color=color_cycle[idx % len(color_cycle)], label=label)
 
     ax.axvline(0.5, color=COLORS["boundary"], linestyle="--", linewidth=1.0, alpha=0.7)
-    ax.set_ylabel("speed")
+    ax.set_ylabel("traffic flow")
     ax.set_title(f"{spec.name} post-last mean curve over {len(rows):,} node-windows", fontsize=10)
     ax.grid(axis="y", alpha=0.25)
     ax.legend(frameon=False, ncol=2, fontsize=8)
@@ -383,10 +383,10 @@ def write_case_table(
             "mid_offset": int(mid),
             "end_offset": int(end),
             "target_start_time": timestamp_at(time_index, int(mid)),
-            "history_last_speed": float(hist[pos, -1]),
-            "future_h1_speed": float(fut[pos, 0]),
-            "future_h12_speed": float(fut[pos, -1]),
-            "future_min_speed": float(fut[pos].min()),
+            "history_last_flow": float(hist[pos, -1]),
+            "future_h1_flow": float(fut[pos, 0]),
+            "future_h12_flow": float(fut[pos, -1]),
+            "future_min_flow": float(fut[pos].min()),
             "event_relative_slots": " ".join(map(str, relative_slots)),
         }
         for name, values in metrics.items():
@@ -414,7 +414,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     result_specs = parse_result_arg(args.result) or DEFAULT_RESULTS.get(args.dataset, [])
-    speed, event, index, time_index = load_dataset(data_root, spec)
+    traffic, event, index, time_index = load_dataset(data_root, spec)
     event_bool = event > 0
     post_last = event_bool[index[:, 1] - 1]
     rows, nodes = np.where(post_last)
@@ -426,14 +426,14 @@ def main() -> None:
         if not result_path.exists():
             skipped[label] = f"missing: {result_path}"
             continue
-        expected_shape = (len(index), spec.out_steps, speed.shape[1], 1)
+        expected_shape = (len(index), spec.out_steps, traffic.shape[1], 1)
         prediction, target = load_prediction_result(result_path, expected_shape=expected_shape)
-        if prediction.shape[:3] != (len(index), spec.out_steps, speed.shape[1]):
-            skipped[label] = f"shape mismatch: prediction {prediction.shape}, expected {(len(index), spec.out_steps, speed.shape[1])}"
+        if prediction.shape[:3] != (len(index), spec.out_steps, traffic.shape[1]):
+            skipped[label] = f"shape mismatch: prediction {prediction.shape}, expected {(len(index), spec.out_steps, traffic.shape[1])}"
             continue
         predictions[label] = prediction
         if target is not None and target.shape[:3] == prediction.shape[:3]:
-            raw_target = speed_relative_values(speed, rows[: min(len(rows), 256)], nodes[: min(len(nodes), 256)], index, spec.in_steps, spec.out_steps)[1]
+            raw_target = traffic_relative_values(traffic, rows[: min(len(rows), 256)], nodes[: min(len(nodes), 256)], index, spec.in_steps, spec.out_steps)[1]
             target_diff = float(np.nanmax(np.abs(target[rows[: min(len(rows), 256)], :, nodes[: min(len(nodes), 256)], 0] - raw_target)))
             skipped[f"{label}:target_check_max_abs_diff_first256"] = target_diff
 
@@ -445,7 +445,7 @@ def main() -> None:
     selected, metrics, hist, fut, event_rel = select_cases(
         rows,
         nodes,
-        speed,
+        traffic,
         event,
         index,
         predictions,
@@ -455,7 +455,7 @@ def main() -> None:
         args.selection,
     )
 
-    plot_mean_curve(output_dir, rows, nodes, speed, event, index, predictions, spec)
+    plot_mean_curve(output_dir, rows, nodes, traffic, event, index, predictions, spec)
     case_records = write_case_table(output_dir, selected, rows, nodes, index, hist, fut, event_rel, metrics, time_index, spec)
     for rank, pos in enumerate(selected, start=1):
         plot_case(
@@ -463,7 +463,7 @@ def main() -> None:
             rank,
             int(rows[pos]),
             int(nodes[pos]),
-            speed,
+            traffic,
             event,
             index,
             predictions,
