@@ -13,6 +13,8 @@ Adapter part:
 - County subset: `sensor_meta_feature.csv` with `County == target` and
   `Type == Mainline`.
 - BasicTS tensor: `[flow, time_of_day, day_of_week, accident_binary]`.
+- Missing flow values: per-node temporal interpolation plus edge fill by
+  default, because BasicTS scalers and metrics do not accept raw NaNs.
 - Split: chronological sliding-window `6/2/2` with `input_len=12`,
   `output_len=12`.
 - Default period: 2023 Q1 (`months=1,2,3`) for an initial paper-style run.

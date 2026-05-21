@@ -71,6 +71,15 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="Traffic channel to forecast. TraffiDent channel 0 is flow.",
     )
+    parser.add_argument(
+        "--fill-missing",
+        default="interpolate",
+        choices=["interpolate", "zero", "none"],
+        help=(
+            "How to handle NaNs in traffic data before BasicTS training. "
+            "interpolate = per-node temporal interpolation plus edge fill."
+        ),
+    )
     parser.add_argument("--input-len", type=int, default=12)
     parser.add_argument("--output-len", type=int, default=12)
     parser.add_argument(
@@ -259,6 +268,34 @@ def add_time_features(flow: np.ndarray, times: pd.DatetimeIndex) -> np.ndarray:
     return data
 
 
+def fill_missing_flow(flow: np.ndarray, mode: str) -> tuple[np.ndarray, dict]:
+    nan_before = int(np.isnan(flow).sum())
+    if nan_before == 0 or mode == "none":
+        return flow.astype(np.float32, copy=False), {
+            "mode": mode,
+            "nan_before": nan_before,
+            "nan_after": int(np.isnan(flow).sum()),
+        }
+
+    if mode == "zero":
+        filled = np.nan_to_num(flow, nan=0.0).astype(np.float32, copy=False)
+    elif mode == "interpolate":
+        filled = (
+            pd.DataFrame(flow)
+            .interpolate(axis=0, limit_direction="both")
+            .fillna(0.0)
+            .to_numpy(dtype=np.float32)
+        )
+    else:
+        raise ValueError(f"Unknown fill_missing mode: {mode}")
+
+    return filled, {
+        "mode": mode,
+        "nan_before": nan_before,
+        "nan_after": int(np.isnan(filled).sum()),
+    }
+
+
 def load_county_flow(
     zf: zipfile.ZipFile,
     year: int,
@@ -386,6 +423,7 @@ def prepare_county(
         args.traffic_channel,
         total_nodes=len(meta),
     )
+    flow, missing_summary = fill_missing_flow(flow, args.fill_missing)
     if len(times) != flow.shape[0]:
         raise ValueError(f"Time index length {len(times)} does not match flow length {flow.shape[0]}")
     data = add_time_features(flow, times)
@@ -419,6 +457,7 @@ def prepare_county(
             "event_types": args.event_types,
             "accident_types": list(ACCIDENT_TYPES) if args.event_types == "accident" else "all",
             "event_window_slots": args.event_window_slots,
+            "fill_missing": missing_summary,
         },
         "matched_incidents": int(len(matched)),
         "event_active_slots": int(data[:, :, 3].sum()),
