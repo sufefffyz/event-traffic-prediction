@@ -241,14 +241,31 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def build_sensor_grid_index(
     datasets: Sequence[CountyDataset],
     resolution: float,
-) -> tuple[List[Dict[str, Any]], Dict[str, float]]:
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, float]]:
     rows: List[Dict[str, Any]] = []
+    skipped_rows: List[Dict[str, Any]] = []
     lats: List[float] = []
     lngs: List[float] = []
     for dataset in datasets:
         for sensor in read_sensor_rows(dataset):
-            lat = as_float(sensor.get("Lat", ""), "Lat", dataset.name)
-            lon = as_float(sensor.get("Lng", ""), "Lng", dataset.name)
+            try:
+                lat = as_float(sensor.get("Lat", ""), "Lat", dataset.name)
+                lon = as_float(sensor.get("Lng", ""), "Lng", dataset.name)
+            except ValueError:
+                skipped_rows.append(
+                    {
+                        "dataset": dataset.name,
+                        "county_slug": dataset.slug,
+                        "node_order": sensor["node_order"],
+                        "global_index": sensor.get("global_index", ""),
+                        "station_id": sensor.get("station_id", ""),
+                        "county": sensor.get("County", ""),
+                        "lat": sensor.get("Lat", ""),
+                        "lng": sensor.get("Lng", ""),
+                        "reason": "missing_or_invalid_lat_lng",
+                    }
+                )
+                continue
             era5_lat = round_to_grid(lat, resolution)
             era5_lon = round_to_grid(lon, resolution)
             lats.append(lat)
@@ -276,13 +293,15 @@ def build_sensor_grid_index(
                     ),
                 }
             )
+    if not rows:
+        raise ValueError("No sensors with valid Lat/Lng were found.")
     bounds = {
         "south": min(lats),
         "north": max(lats),
         "west": min(lngs),
         "east": max(lngs),
     }
-    return rows, bounds
+    return rows, skipped_rows, bounds
 
 
 def write_csv(path: Path, rows: Sequence[Dict[str, Any]]) -> None:
@@ -449,7 +468,7 @@ def main() -> None:
     download_status_path = args.output_root / "era5_download_status.json"
     target_path = raw_era5_dir / args.target_name
 
-    sensor_grid_rows, sensor_bounds = build_sensor_grid_index(
+    sensor_grid_rows, skipped_sensor_rows, sensor_bounds = build_sensor_grid_index(
         datasets, resolution=args.grid_resolution
     )
     area = round_area(sensor_bounds, args.bbox_margin_deg, args.grid_resolution)
@@ -458,8 +477,11 @@ def main() -> None:
     request = build_era5_request(variables, area, utc_start, utc_end)
 
     sensor_grid_path = index_dir / "sensor_to_era5_grid_index.csv"
+    skipped_sensor_path = index_dir / "sensors_missing_location.csv"
     traffic_sources_path = index_dir / "traffic_sources.csv"
     write_csv(sensor_grid_path, sensor_grid_rows)
+    if skipped_sensor_rows:
+        write_csv(skipped_sensor_path, skipped_sensor_rows)
     traffic_sources = write_traffic_sources(traffic_sources_path, datasets)
     write_json(request_path, request)
 
@@ -500,12 +522,15 @@ def main() -> None:
         },
         "sidecar_files": {
             "sensor_to_era5_grid_index": str(sensor_grid_path),
+            "sensors_missing_location": str(skipped_sensor_path) if skipped_sensor_rows else None,
             "traffic_sources": str(traffic_sources_path),
             "download_status": str(download_status_path),
         },
         "summary": {
             "num_datasets": len(datasets),
-            "num_sensors": len(sensor_grid_rows),
+            "num_sensors_total": len(sensor_grid_rows) + len(skipped_sensor_rows),
+            "num_sensors_mapped_to_era5_grid": len(sensor_grid_rows),
+            "num_sensors_missing_location": len(skipped_sensor_rows),
             "num_unique_era5_grids": len(unique_grids),
             "unique_era5_grids_preview": unique_grids[:20],
         },
