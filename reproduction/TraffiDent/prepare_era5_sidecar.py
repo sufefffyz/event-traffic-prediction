@@ -365,24 +365,58 @@ def round_area(bounds: Dict[str, float], margin: float, resolution: float) -> Di
 def build_era5_request(
     variables: Sequence[str],
     area: Dict[str, float],
-    start_utc: datetime,
-    end_utc: datetime,
+    year: int,
+    month: int,
+    days: Sequence[int],
 ) -> Dict[str, Any]:
-    dates = dates_between(start_utc, end_utc)
-    years = sorted({f"{dt.year:04d}" for dt in dates})
-    months = sorted({f"{dt.month:02d}" for dt in dates})
-    days = [f"{day:02d}" for day in range(1, 32)]
     times = [f"{hour:02d}:00" for hour in range(24)]
     return {
         "product_type": ["reanalysis"],
         "variable": list(variables),
-        "year": years,
-        "month": months,
-        "day": days,
+        "year": [f"{year:04d}"],
+        "month": [f"{month:02d}"],
+        "day": [f"{day:02d}" for day in days],
         "time": times,
         "area": [area["north"], area["west"], area["south"], area["east"]],
         "data_format": "netcdf",
         "download_format": "unarchived",
+    }
+
+
+def build_era5_request_bundle(
+    variables: Sequence[str],
+    area: Dict[str, float],
+    start_utc: datetime,
+    end_utc: datetime,
+    raw_era5_dir: Path,
+    target_name: str,
+) -> Dict[str, Any]:
+    dates = dates_between(start_utc, end_utc)
+    by_month: Dict[tuple[int, int], List[int]] = {}
+    for dt in dates:
+        by_month.setdefault((dt.year, dt.month), []).append(dt.day)
+
+    target_stem = Path(target_name).stem
+    requests = []
+    for (year, month), day_values in sorted(by_month.items()):
+        days = sorted(set(day_values))
+        request = build_era5_request(variables, area, year, month, days)
+        target_path = raw_era5_dir / f"{target_stem}_{year}{month:02d}.nc"
+        requests.append(
+            {
+                "name": f"{year}-{month:02d}",
+                "target_path": str(target_path),
+                "utc_days": [f"{year:04d}-{month:02d}-{day:02d}" for day in days],
+                "request": request,
+            }
+        )
+    return {
+        "dataset": "reanalysis-era5-single-levels",
+        "note": (
+            "Monthly requests avoid downloading unnecessary whole months while "
+            "keeping raw ERA5 NetCDF files separate from traffic data."
+        ),
+        "requests": requests,
     }
 
 
@@ -466,7 +500,6 @@ def main() -> None:
     manifest_path = args.output_root / "traffic_era5_sidecar_manifest.json"
     request_path = args.output_root / "era5_request.json"
     download_status_path = args.output_root / "era5_download_status.json"
-    target_path = raw_era5_dir / args.target_name
 
     sensor_grid_rows, skipped_sensor_rows, sensor_bounds = build_sensor_grid_index(
         datasets, resolution=args.grid_resolution
@@ -474,7 +507,14 @@ def main() -> None:
     area = round_area(sensor_bounds, args.bbox_margin_deg, args.grid_resolution)
     local_start, local_end = local_period_bounds(args.year, months)
     utc_start, utc_end = utc_hour_bounds(local_start, local_end, args.timezone)
-    request = build_era5_request(variables, area, utc_start, utc_end)
+    request_bundle = build_era5_request_bundle(
+        variables,
+        area,
+        utc_start,
+        utc_end,
+        raw_era5_dir,
+        args.target_name,
+    )
 
     sensor_grid_path = index_dir / "sensor_to_era5_grid_index.csv"
     skipped_sensor_path = index_dir / "sensors_missing_location.csv"
@@ -483,9 +523,10 @@ def main() -> None:
     if skipped_sensor_rows:
         write_csv(skipped_sensor_path, skipped_sensor_rows)
     traffic_sources = write_traffic_sources(traffic_sources_path, datasets)
-    write_json(request_path, request)
+    write_json(request_path, request_bundle)
 
     unique_grids = sorted({row["era5_grid_id"] for row in sensor_grid_rows})
+    target_paths = [entry["target_path"] for entry in request_bundle["requests"]]
     manifest = {
         "created_by": Path(__file__).name,
         "policy": {
@@ -509,12 +550,12 @@ def main() -> None:
         },
         "era5": {
             "dataset": "reanalysis-era5-single-levels",
-            "target_path": str(target_path),
+            "target_paths": target_paths,
             "request_json": str(request_path),
             "variables": variables,
             "grid_resolution_degree": args.grid_resolution,
             "sensor_bounds": sensor_bounds,
-            "request_area_north_west_south_east": request["area"],
+            "request_area_north_west_south_east": [area["north"], area["west"], area["south"], area["east"]],
             "utc_hour_period": {
                 "start": utc_start.isoformat(sep=" "),
                 "end": utc_end.isoformat(sep=" "),
@@ -538,14 +579,37 @@ def main() -> None:
     write_json(manifest_path, manifest)
 
     status = {
-        "target": str(target_path),
+        "targets": target_paths,
         "download_requested": bool(args.download),
         "attempted": False,
-        "downloaded": target_path.exists(),
+        "downloaded": all(Path(path).exists() for path in target_paths),
         "blocked_reason": None,
     }
     if args.download:
-        status = attempt_download(request, target_path, overwrite=args.overwrite)
+        statuses = []
+        for entry in request_bundle["requests"]:
+            statuses.append(
+                attempt_download(
+                    entry["request"],
+                    Path(entry["target_path"]),
+                    overwrite=args.overwrite,
+                )
+            )
+        status = {
+            "download_requested": True,
+            "targets": target_paths,
+            "attempted": any(item.get("attempted") for item in statuses),
+            "downloaded": all(item.get("downloaded") for item in statuses),
+            "per_target": statuses,
+        }
+        blocked = sorted(
+            {
+                str(item.get("blocked_reason"))
+                for item in statuses
+                if item.get("blocked_reason")
+            }
+        )
+        status["blocked_reason"] = "|".join(blocked) if blocked else None
     write_json(download_status_path, status)
 
     print(f"Wrote manifest: {manifest_path}")
@@ -556,7 +620,7 @@ def main() -> None:
     if status.get("blocked_reason"):
         print(f"ERA5 download status: {status['blocked_reason']}")
     elif status.get("downloaded"):
-        print(f"ERA5 target is available: {target_path}")
+        print(f"ERA5 targets are available: {len(target_paths)} file(s)")
 
 
 if __name__ == "__main__":
