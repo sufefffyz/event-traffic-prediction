@@ -480,7 +480,22 @@ def attempt_download(
     import cdsapi  # type: ignore
 
     client = cdsapi.Client()
-    client.retrieve("reanalysis-era5-single-levels", request, str(target))
+    try:
+        client.retrieve("reanalysis-era5-single-levels", request, str(target))
+    except Exception as exc:  # CDS errors are best recorded for later reruns.
+        message = str(exc)
+        reason = "cdsapi_error"
+        if "required licences not accepted" in message.lower():
+            reason = "required_licences_not_accepted"
+        status.update(
+            {
+                "downloaded": False,
+                "blocked_reason": reason,
+                "error_type": type(exc).__name__,
+                "error_message": message,
+            }
+        )
+        return status
     status["downloaded"] = target.exists()
     if target.exists():
         status["size_bytes"] = target.stat().st_size
