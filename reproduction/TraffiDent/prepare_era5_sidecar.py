@@ -122,6 +122,28 @@ def parse_args() -> argparse.Namespace:
         help="ERA5 NetCDF filename under output-root/raw_era5.",
     )
     parser.add_argument(
+        "--era5-start-date",
+        default=None,
+        help=(
+            "Optional local-calendar start date for ERA5 requests, YYYY-MM-DD. "
+            "Traffic source references still use --year/--months."
+        ),
+    )
+    parser.add_argument(
+        "--era5-end-date",
+        default=None,
+        help=(
+            "Optional local-calendar end date for ERA5 requests, YYYY-MM-DD. "
+            "Defaults to the end of --months."
+        ),
+    )
+    parser.add_argument(
+        "--request-split",
+        default="month",
+        choices=["month", "week", "day"],
+        help="Split ERA5 CDS requests by month, week-like 7-day chunks, or day.",
+    )
+    parser.add_argument(
         "--download",
         action="store_true",
         help="Try to download ERA5 via cdsapi after writing sidecar metadata.",
@@ -145,6 +167,13 @@ def parse_months(value: str) -> List[int]:
     if any(month < 1 or month > 12 for month in months):
         raise ValueError(f"Months must be in 1..12, got {months}")
     return months
+
+
+def parse_date(value: str, label: str) -> datetime:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError(f"{label} must be YYYY-MM-DD, got {value!r}") from exc
 
 
 def period_label(months: Sequence[int]) -> str:
@@ -390,6 +419,7 @@ def build_era5_request_bundle(
     end_utc: datetime,
     raw_era5_dir: Path,
     target_name: str,
+    request_split: str,
 ) -> Dict[str, Any]:
     dates = dates_between(start_utc, end_utc)
     by_month: Dict[tuple[int, int], List[int]] = {}
@@ -400,22 +430,46 @@ def build_era5_request_bundle(
     requests = []
     for (year, month), day_values in sorted(by_month.items()):
         days = sorted(set(day_values))
-        request = build_era5_request(variables, area, year, month, days)
-        target_path = raw_era5_dir / f"{target_stem}_{year}{month:02d}.nc"
-        requests.append(
-            {
-                "name": f"{year}-{month:02d}",
-                "target_path": str(target_path),
-                "utc_days": [f"{year:04d}-{month:02d}-{day:02d}" for day in days],
-                "request": request,
-            }
-        )
+        if request_split == "month":
+            chunks = [days]
+        elif request_split == "week":
+            chunks = [days[idx : idx + 7] for idx in range(0, len(days), 7)]
+        elif request_split == "day":
+            chunks = [[day] for day in days]
+        else:
+            raise ValueError(f"Unknown request split: {request_split}")
+
+        for chunk in chunks:
+            request = build_era5_request(variables, area, year, month, chunk)
+            first_day = chunk[0]
+            last_day = chunk[-1]
+            if request_split == "month":
+                suffix = f"{year}{month:02d}"
+                name = f"{year}-{month:02d}"
+            elif first_day == last_day:
+                suffix = f"{year}{month:02d}{first_day:02d}"
+                name = f"{year}-{month:02d}-{first_day:02d}"
+            else:
+                suffix = f"{year}{month:02d}{first_day:02d}_{year}{month:02d}{last_day:02d}"
+                name = f"{year}-{month:02d}-{first_day:02d}_to_{year}-{month:02d}-{last_day:02d}"
+            target_path = raw_era5_dir / f"{target_stem}_{suffix}.nc"
+            requests.append(
+                {
+                    "name": name,
+                    "target_path": str(target_path),
+                    "utc_days": [
+                        f"{year:04d}-{month:02d}-{day:02d}" for day in chunk
+                    ],
+                    "request": request,
+                }
+            )
     return {
         "dataset": "reanalysis-era5-single-levels",
         "note": (
-            "Monthly requests avoid downloading unnecessary whole months while "
+            f"{request_split} requests avoid oversized CDS jobs while "
             "keeping raw ERA5 NetCDF files separate from traffic data."
         ),
+        "request_split": request_split,
         "requests": requests,
     }
 
@@ -520,8 +574,22 @@ def main() -> None:
         datasets, resolution=args.grid_resolution
     )
     area = round_area(sensor_bounds, args.bbox_margin_deg, args.grid_resolution)
-    local_start, local_end = local_period_bounds(args.year, months)
-    utc_start, utc_end = utc_hour_bounds(local_start, local_end, args.timezone)
+    traffic_local_start, traffic_local_end = local_period_bounds(args.year, months)
+    era5_local_start = (
+        parse_date(args.era5_start_date, "--era5-start-date")
+        if args.era5_start_date
+        else traffic_local_start
+    )
+    era5_local_end = (
+        parse_date(args.era5_end_date, "--era5-end-date").replace(
+            hour=23, minute=55, second=0
+        )
+        if args.era5_end_date
+        else traffic_local_end
+    )
+    if era5_local_start > era5_local_end:
+        raise ValueError("--era5-start-date must be no later than --era5-end-date")
+    utc_start, utc_end = utc_hour_bounds(era5_local_start, era5_local_end, args.timezone)
     request_bundle = build_era5_request_bundle(
         variables,
         area,
@@ -529,6 +597,7 @@ def main() -> None:
         utc_end,
         raw_era5_dir,
         args.target_name,
+        args.request_split,
     )
 
     sensor_grid_path = index_dir / "sensor_to_era5_grid_index.csv"
@@ -554,8 +623,8 @@ def main() -> None:
             "source_zip": str(args.xtraffic_zip),
             "local_timezone_assumption": args.timezone,
             "local_regular_5min_period": {
-                "start": local_start.isoformat(sep=" "),
-                "end": local_end.isoformat(sep=" "),
+                "start": traffic_local_start.isoformat(sep=" "),
+                "end": traffic_local_end.isoformat(sep=" "),
                 "note": (
                     "The existing BasicTS traffic view is a regular 5-minute "
                     "local-clock index. The sidecar does not insert/remove DST slots."
@@ -571,6 +640,11 @@ def main() -> None:
             "grid_resolution_degree": args.grid_resolution,
             "sensor_bounds": sensor_bounds,
             "request_area_north_west_south_east": [area["north"], area["west"], area["south"], area["east"]],
+            "request_split": args.request_split,
+            "local_request_period": {
+                "start": era5_local_start.isoformat(sep=" "),
+                "end": era5_local_end.isoformat(sep=" "),
+            },
             "utc_hour_period": {
                 "start": utc_start.isoformat(sep=" "),
                 "end": utc_end.isoformat(sep=" "),
@@ -610,11 +684,25 @@ def main() -> None:
                     overwrite=args.overwrite,
                 )
             )
+            partial_status = {
+                "download_requested": True,
+                "in_progress": len(statuses) < len(request_bundle["requests"]),
+                "targets": target_paths,
+                "attempted": any(item.get("attempted") for item in statuses),
+                "downloaded": False,
+                "completed_targets": len(statuses),
+                "total_targets": len(request_bundle["requests"]),
+                "per_target": statuses,
+            }
+            write_json(download_status_path, partial_status)
         status = {
             "download_requested": True,
+            "in_progress": False,
             "targets": target_paths,
             "attempted": any(item.get("attempted") for item in statuses),
             "downloaded": all(item.get("downloaded") for item in statuses),
+            "completed_targets": len(statuses),
+            "total_targets": len(request_bundle["requests"]),
             "per_target": statuses,
         }
         blocked = sorted(
