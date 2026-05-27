@@ -53,6 +53,15 @@ python experiments/train.py -c baselines/STIDGatedAccident/TraffiDent_Alameda.py
 
 If the smoke run saves a checkpoint and test-results normally, launch the four-county 100-epoch run with the same seed and settings as STID/STIDAccident.
 
+Server helper:
+
+```bash
+screen -dmS aris_stid_gated_counties_g0 bash -lc \
+  'cd /home/yuzhang_fei/code/event-traffic-prediction-git && \
+   GPU_ID=0 TRAFFIDENT_NUM_EPOCHS=100 \
+   bash reproduction/server_scripts/run_traffident_stid_gated_counties.sh'
+```
+
 ## Smoke Status
 
 - Initial random forward passed on the server.
