@@ -1,0 +1,53 @@
+{
+  "ridge_alpha": 10.0,
+  "n_train": 12139,
+  "n_test": 4955,
+  "features": [
+    "intercept",
+    "fwy",
+    "distance",
+    "sensor_abs_pm",
+    "incident_abs_pm",
+    "abs_pm_gap",
+    "tod_sin",
+    "tod_cos",
+    "dow_sin",
+    "dow_cos",
+    "pre_last",
+    "pre_mean",
+    "pre_std",
+    "pre_slope",
+    "Road Width_num",
+    "Lane Width_num",
+    "Design Speed Limit_num",
+    "county_Alameda",
+    "county_ContraCosta",
+    "county_LosAngeles",
+    "county_Orange",
+    "type_1141",
+    "type_NoInj",
+    "type_UnknInj"
+  ],
+  "train_events_by_county": {
+    "LosAngeles": 7740,
+    "Orange": 2064,
+    "Alameda": 1530,
+    "ContraCosta": 805
+  },
+  "test_events_by_county": {
+    "LosAngeles": 3111,
+    "Orange": 885,
+    "Alameda": 594,
+    "ContraCosta": 365
+  },
+  "train_events_by_type": {
+    "NoInj": 5530,
+    "UnknInj": 4650,
+    "1141": 1959
+  },
+  "test_events_by_type": {
+    "NoInj": 2162,
+    "UnknInj": 2053,
+    "1141": 740
+  }
+}
