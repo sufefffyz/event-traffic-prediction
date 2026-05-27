@@ -1,3 +1,3 @@
 from .traffident_common import make_cfg
 
-CFG = make_cfg("ContraCosta", 280)
+CFG = make_cfg("ContraCosta", 496)

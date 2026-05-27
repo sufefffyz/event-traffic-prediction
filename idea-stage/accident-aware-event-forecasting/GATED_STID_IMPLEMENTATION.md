@@ -53,6 +53,11 @@ python experiments/train.py -c baselines/STIDGatedAccident/TraffiDent_Alameda.py
 
 If the smoke run saves a checkpoint and test-results normally, launch the four-county 100-epoch run with the same seed and settings as STID/STIDAccident.
 
+## Smoke Status
+
+- Initial random forward passed on the server.
+- First Alameda smoke run exposed a config issue: the prepared Alameda tensor has 521 nodes, not 325. ContraCosta has 496 nodes, not 280. The new `STIDGatedAccident` county configs were corrected to the actual `data.npz` shapes.
+
 ## Known Limit
 
 This first version only uses accidents visible in the input history window. It does not use future-known incident schedules, weather, or lane closure features. That choice keeps it aligned with the current TraffiDent county BasicTS tensors and avoids changing BasicTS core data loading.
