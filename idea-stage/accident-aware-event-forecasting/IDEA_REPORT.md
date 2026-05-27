@@ -144,7 +144,7 @@ Therefore the safe main idea is not any single generic component. The safer nove
 
 | Pilot | Time | Success Signal |
 | --- | --- | --- |
-| Retrieval-only incident memory | 1-2 天 | top-k historical response 比 seasonal/matched baseline 更接近事故后真实响应 |
+| Retrieval-only incident memory | done | NEGATIVE: top-k historical incident residual retrieval was worse than normal prior in all four counties |
 | STID + sparse accident residual router | 3-5 天 | overall 不降，事故邻域/长 horizon MAE 或 signed bias 改善 |
 | Counterfactual residual target construction | 2-4 天 | matched no-event baseline 能稳定解释 normal traffic，事故 residual 有非零结构 |
 
@@ -152,6 +152,7 @@ Therefore the safe main idea is not any single generic component. The safer nove
 
 - `NOVELTY_CHECK.md`: conservative novelty scoring and closest-prior table.
 - `REVIEW_SUMMARY.md`: reviewer critique and final paper framing.
+- `PILOT_RESULTS.md`: first training-free retrieval memory pilot. It was negative, so retrieval is downgraded to a baseline/component.
 - `.aris/traces/novelty-check/2026-05-27_run01/trace.md`: ARIS trace record.
 
 ## Sources

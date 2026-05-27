@@ -18,9 +18,9 @@
 - **One-line**: Retrieve historical incident residual trajectories for new accidents and use them as a prior for forecasting.
 - **Novelty score**: 5.5/10.
 - **Reviewer assessment**: Generic retrieval is crowded because of RAST; novelty depends on incident-response residual retrieval with no post-event leakage.
-- **Pilot result**: Pending; training-free pilot script added.
+- **Pilot result**: NEGATIVE. Retrieval residual was worse than the matched normal prior in all four counties and worse than persistence.
 - **Estimated effort**: 1-2 days for pilot, 1-2 weeks as model component.
-- **Why not selected first**: Too close to generic retrieval-augmented traffic prediction if used alone.
+- **Why not selected first**: Too close to generic retrieval-augmented traffic prediction if used alone, and the first pilot did not show signal.
 
 ### Candidate 2: Counterfactual-Inspired Residual Target
 
@@ -67,3 +67,4 @@
 | 2026-05-27 | Generic accident-aware forecasting | Sparse accident residual router | Naive STID+accident was weak and prior work already covers generic condition fusion |
 | 2026-05-27 | Counterfactual forecaster | Counterfactual-inspired residual target | Crash HTE and MSCT make strong causal framing risky |
 | 2026-05-27 | Retrieval as main method | Incident response memory as pilot/component | RAST makes generic retrieval too crowded |
+| 2026-05-27 | Incident response memory as candidate | Incident response memory as baseline/component only | Retrieval-only pilot was negative |

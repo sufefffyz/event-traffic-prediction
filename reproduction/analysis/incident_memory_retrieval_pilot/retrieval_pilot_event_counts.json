@@ -1,0 +1,62 @@
+[
+  {
+    "county": "LosAngeles",
+    "train_events": 7740,
+    "test_events": 3111,
+    "train_types": {
+      "NoInj": 3744,
+      "UnknInj": 2749,
+      "1141": 1247
+    },
+    "test_types": {
+      "NoInj": 1426,
+      "UnknInj": 1219,
+      "1141": 466
+    }
+  },
+  {
+    "county": "Orange",
+    "train_events": 2064,
+    "test_events": 885,
+    "train_types": {
+      "UnknInj": 863,
+      "NoInj": 844,
+      "1141": 357
+    },
+    "test_types": {
+      "UnknInj": 391,
+      "NoInj": 356,
+      "1141": 138
+    }
+  },
+  {
+    "county": "Alameda",
+    "train_events": 1530,
+    "test_events": 594,
+    "train_types": {
+      "UnknInj": 665,
+      "NoInj": 636,
+      "1141": 229
+    },
+    "test_types": {
+      "UnknInj": 260,
+      "NoInj": 250,
+      "1141": 84
+    }
+  },
+  {
+    "county": "ContraCosta",
+    "train_events": 805,
+    "test_events": 365,
+    "train_types": {
+      "UnknInj": 373,
+      "NoInj": 306,
+      "1141": 126
+    },
+    "test_types": {
+      "UnknInj": 183,
+      "NoInj": 130,
+      "1141": 52
+    }
+  }
+]
