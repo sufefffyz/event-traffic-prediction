@@ -179,8 +179,8 @@ def make_design(train: pd.DataFrame, test: pd.DataFrame) -> tuple[np.ndarray, np
     numeric_cols = [c for c in numeric_cols if c in train.columns]
     train_num = train[numeric_cols].astype(float)
     test_num = test[numeric_cols].astype(float)
-    means = train_num.mean(axis=0)
-    stds = train_num.std(axis=0).replace(0, 1.0)
+    means = train_num.mean(axis=0).fillna(0.0)
+    stds = train_num.std(axis=0).replace(0, 1.0).fillna(1.0)
     train_num = ((train_num.fillna(means) - means) / stds).to_numpy()
     test_num = ((test_num.fillna(means) - means) / stds).to_numpy()
 
