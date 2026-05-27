@@ -57,6 +57,41 @@ If the smoke run saves a checkpoint and test-results normally, launch the four-c
 
 - Initial random forward passed on the server.
 - First Alameda smoke run exposed a config issue: the prepared Alameda tensor has 521 nodes, not 325. ContraCosta has 496 nodes, not 280. The new `STIDGatedAccident` county configs were corrected to the actual `data.npz` shapes.
+- Corrected random forward passed for all four county configs:
+  - LosAngeles: 1771 nodes;
+  - Orange: 990 nodes;
+  - Alameda: 521 nodes;
+  - ContraCosta: 496 nodes.
+- A 2-epoch Alameda smoke run completed on GPU 0 with online WandB.
+
+Smoke artifacts on the server:
+
+```text
+log:
+/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/logs/aris_stid_gated_alameda_smoke2_20260527_2241.log
+
+checkpoint/test-results:
+/home/yuzhang_fei/code/event-traffic-prediction-git/BasicTS/checkpoints/STIDGatedAccident/TraffiDent_Alameda_2023Q1_2_12_12_gated_accident/4f0386f5bf8ad31e01f7d35755be1f0f
+```
+
+Smoke metrics after 2 epochs:
+
+| Split | MAE | MAPE | RMSE |
+| --- | ---: | ---: | ---: |
+| val | 12.6836 | 0.2496 | 22.8253 |
+| test | 12.9333 | 0.2224 | 23.7523 |
+
+| Horizon | MAE | MAPE | RMSE |
+| --- | ---: | ---: | ---: |
+| h3 | 11.4607 | 0.1972 | 21.1850 |
+| h6 | 12.8993 | 0.2193 | 23.7167 |
+| h12 | 15.1027 | 0.2540 | 27.1950 |
+
+WandB run:
+
+```text
+https://wandb.ai/825521004-renmin-university-of-china/event-traffic-prediction/runs/hf5a7wh8
+```
 
 ## Known Limit
 
