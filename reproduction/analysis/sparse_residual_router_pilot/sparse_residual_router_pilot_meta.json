@@ -1,5 +1,9 @@
 {
   "ridge_alpha": 10.0,
+  "gate_quantile": 0.75,
+  "gate_threshold_train_mean_abs_residual": 23.75,
+  "test_gate_positive_count": 1327,
+  "test_gate_positive_rate": 0.2678102926337033,
   "n_train": 12139,
   "n_test": 4955,
   "features": [

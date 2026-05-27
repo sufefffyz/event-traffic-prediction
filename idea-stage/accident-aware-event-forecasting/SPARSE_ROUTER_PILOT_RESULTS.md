@@ -3,11 +3,11 @@
 **Date**: 2026-05-27  
 **Script**: `reproduction/analysis/sparse_residual_router_pilot.py`  
 **Data**: TraffiDent 2023Q1 county BasicTS data  
-**Model**: ridge residual expert over persistence, using event/node/pre-state features  
+**Model**: ridge residual experts over persistence, using event/node/pre-state features  
 
 ## Pilot Question
 
-Before building a neural sparse accident residual router, test whether a simple residual expert can predict accident-window residuals better than persistence.
+Before building a neural sparse accident residual router, test whether a simple residual expert can predict accident-window residuals better than persistence, and whether sparse gating avoids negative transfer.
 
 The pilot uses:
 
@@ -28,12 +28,12 @@ prediction_h = persistence_h + ridge_residual_h
 
 ## Results
 
-| County | Persistence MAE | Global Residual Mean | Ridge Residual Expert | Decision |
-| --- | ---: | ---: | ---: | --- |
-| LosAngeles | 15.35 | 15.66 | 15.70 | worse |
-| Orange | 15.30 | 15.49 | 16.01 | worse |
-| Alameda | 16.26 | 16.54 | 17.29 | worse |
-| ContraCosta | 19.48 | 19.74 | 19.15 | better |
+| County | Persistence | Dense Ridge | Impact-Gated Ridge q75 | High-Impact-Train Gated q75 | County-Specific Ridge | Decision |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| LosAngeles | 15.35 | 15.70 | 14.55 | 14.55 | 15.67 | gated better |
+| Orange | 15.30 | 16.01 | 15.05 | 15.51 | 16.25 | gated better |
+| Alameda | 16.26 | 17.29 | 15.70 | 16.04 | 17.48 | gated better |
+| ContraCosta | 19.48 | 19.15 | 18.24 | 18.24 | 20.93 | gated better |
 
 Full outputs:
 
@@ -43,9 +43,15 @@ Full outputs:
 
 ## Interpretation
 
-This is a mixed/mostly negative pilot.
+This is a positive pilot for the sparse-router framing.
 
-The result says a global linear residual expert is not enough. It tends to inject residual noise into LA, Orange, and Alameda. ContraCosta improves slightly, which suggests some county/event regimes may have predictable residual structure, but the signal is not universal.
+The dense/global residual expert still injects noise into LA, Orange, and Alameda. However, once residual correction is only applied to windows predicted as high-impact by a train-only residual-magnitude gate, MAE improves over persistence in all four counties.
+
+This supports the core mechanism:
+
+```text
+prediction = normal_forecast + sparse_gate(event, node, history) * accident_residual
+```
 
 This supports the reviewer's warning:
 
@@ -55,10 +61,16 @@ This supports the reviewer's warning:
 
 Do not implement a dense residual expert as the main model.
 
-Next version should test one of:
+Implement the next BasicTS/STID prototype as a gated residual module:
+
+- base forecast branch: normal STID forecast;
+- gate branch: predicts whether an accident window is high-impact;
+- residual branch: predicts accident residual only when the gate is active;
+- no-change option: the model should be able to keep the base forecast unchanged.
+
+Still useful follow-up variants:
 
 1. **Impact-gated residual expert**: train residual only on high-impact event windows and force gate sparsity.
 2. **Type/county-specific residual experts**: avoid pooling all incident regimes.
 3. **Node-horizon router**: route residuals only when predicted impact probability is high.
 4. **Persistence-aware objective**: optimize only residual corrections that beat persistence, with a no-change option.
-

@@ -7,7 +7,7 @@
 - **One-line**: Learn accident-induced residuals over a normal-traffic baseline and route them sparsely to affected node-horizon pairs.
 - **Novelty score**: 6.5/10 after check.
 - **Reviewer assessment**: Strongest feasible method skeleton, but must avoid being generic MoE/gating.
-- **Pilot result**: MIXED. A dense/global ridge residual expert mostly worsened persistence, with improvement only on ContraCosta. This supports sparse/local gating rather than dense residual correction.
+- **Pilot result**: POSITIVE FOR GATING. A dense/global ridge residual expert mostly worsened persistence, but an impact-score gated residual expert improved all four counties. This supports sparse/local gating rather than dense residual correction.
 - **Estimated effort**: 2-6 weeks for a BasicTS prototype and first full run.
 - **Why selected first**: Best balance between feasibility, current evidence, and paper narrative.
 
@@ -68,4 +68,4 @@
 | 2026-05-27 | Counterfactual forecaster | Counterfactual-inspired residual target | Crash HTE and MSCT make strong causal framing risky |
 | 2026-05-27 | Retrieval as main method | Incident response memory as pilot/component | RAST makes generic retrieval too crowded |
 | 2026-05-27 | Incident response memory as candidate | Incident response memory as baseline/component only | Retrieval-only pilot was negative |
-| 2026-05-27 | Dense residual expert | Sparse/local gated residual expert | Ridge residual pilot showed negative transfer in three of four counties |
+| 2026-05-27 | Dense residual expert | Sparse/local gated residual expert | Ridge residual pilot showed negative transfer in three of four counties; impact-score gated residual improved all four |
