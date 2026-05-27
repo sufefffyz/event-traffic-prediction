@@ -35,6 +35,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--flow-channel", type=int, default=0)
     parser.add_argument("--start-time", default="2023-01-01 00:00:00")
     parser.add_argument("--ridge-alpha", type=float, default=10.0)
+    parser.add_argument(
+        "--gate-quantile",
+        type=float,
+        default=0.75,
+        help="Train-set mean absolute residual quantile used as the high-impact gate threshold.",
+    )
     return parser.parse_args()
 
 
@@ -233,16 +239,56 @@ def main() -> None:
     x_train, x_test, feature_names = make_design(train, test)
     y_train = train[r_cols].to_numpy(dtype=float)
     resid_pred = ridge_fit_predict(x_train, y_train, x_test, args.ridge_alpha)
+    train_impact = np.nanmean(np.abs(y_train), axis=1)
+    gate_threshold = float(np.quantile(train_impact, args.gate_quantile))
+    impact_score = ridge_fit_predict(
+        x_train,
+        train_impact[:, None],
+        x_test,
+        args.ridge_alpha,
+    ).reshape(-1)
+    impact_gate = impact_score >= gate_threshold
+
+    high_impact_train = train_impact >= gate_threshold
+    high_impact_resid_pred = ridge_fit_predict(
+        x_train[high_impact_train],
+        y_train[high_impact_train],
+        x_test,
+        args.ridge_alpha,
+    )
 
     y_true = test[y_cols].to_numpy(dtype=float)
     persistence = test[p_cols].to_numpy(dtype=float)
     ridge_pred = persistence + resid_pred
     global_resid = persistence + np.nanmean(y_train, axis=0)[None, :]
+    gated_ridge_pred = persistence.copy()
+    gated_ridge_pred[impact_gate] = ridge_pred[impact_gate]
+    gated_high_impact_pred = persistence.copy()
+    gated_high_impact_pred[impact_gate] = (
+        persistence[impact_gate] + high_impact_resid_pred[impact_gate]
+    )
+
+    county_ridge_pred = persistence.copy()
+    train_counties = train["county"].to_numpy()
+    test_counties = test["county"].to_numpy()
+    for county in args.counties:
+        train_mask = train_counties == county
+        test_mask = test_counties == county
+        county_resid = ridge_fit_predict(
+            x_train[train_mask],
+            y_train[train_mask],
+            x_test[test_mask],
+            args.ridge_alpha,
+        )
+        county_ridge_pred[test_mask] = persistence[test_mask] + county_resid
 
     methods = {
         "persistence": persistence,
         "global_residual_ridge_target_mean": global_resid,
         "ridge_residual_expert": ridge_pred,
+        f"impact_score_gated_ridge_q{int(args.gate_quantile * 100)}": gated_ridge_pred,
+        f"high_impact_train_gated_ridge_q{int(args.gate_quantile * 100)}": gated_high_impact_pred,
+        "county_specific_ridge_residual_expert": county_ridge_pred,
     }
 
     rows = []
@@ -269,6 +315,10 @@ def main() -> None:
 
     meta = {
         "ridge_alpha": args.ridge_alpha,
+        "gate_quantile": args.gate_quantile,
+        "gate_threshold_train_mean_abs_residual": gate_threshold,
+        "test_gate_positive_count": int(np.sum(impact_gate)),
+        "test_gate_positive_rate": float(np.mean(impact_gate)),
         "n_train": int(len(train)),
         "n_test": int(len(test)),
         "features": feature_names,
