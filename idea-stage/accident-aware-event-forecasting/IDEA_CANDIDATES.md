@@ -8,6 +8,7 @@
 - **Novelty score**: 6.5/10 after check.
 - **Reviewer assessment**: Strongest feasible method skeleton, but must avoid being generic MoE/gating.
 - **Pilot result**: POSITIVE FOR GATING; MIXED AS A TRAINED MODEL. A dense/global ridge residual expert mostly worsened persistence, but an impact-score gated residual expert improved all four counties. The trained BasicTS `STIDGatedAccident` beats `STIDAccident` on all four counties, but beats pure `STID` only on Alameda under overall MAE. Event-sensitive metrics show the useful signal is mainly in `future_onset/future_any`, not all post-incident windows.
+- **Hard bar**: future modules must beat pure `STID`; beating `STIDAccident` only counts as evidence that the accident branch is less harmful than naive fusion. Architecture and formulas should be recorded before each new module run.
 - **Estimated effort**: 2-6 weeks for a BasicTS prototype and first full run.
 - **Why selected first**: Best balance between feasibility, current evidence, and paper narrative.
 

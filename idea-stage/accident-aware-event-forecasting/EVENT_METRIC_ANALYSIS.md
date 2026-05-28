@@ -48,6 +48,10 @@ Interpretation:
   forecast horizon: `future_onset` / `future_any`.
 - `post_last_slot` and `history_only` do not yet support the claim that the
   current gated module improves post-incident forecasting over STID.
+- Important caveat: the current model only sees accident activity in the input
+  history and hard-masks the residual branch when history has no accident.
+  Therefore `future_onset` gains cannot yet be claimed as true future-event
+  awareness; they are indirect effects of retraining the base branch.
 - Event windows are extremely sparse. `post_last_slot` is only about 0.03-0.06%
   of test node-windows, so per-county variance is large.
 
@@ -83,8 +87,9 @@ The event-window analysis refines the claim:
 
 > Sparse accident routing is better than direct accident embedding, but this
 > first neural implementation is not yet a robust improvement over pure STID.
-> The useful signal is concentrated in future-onset windows, not in all
-> post-incident windows.
+> The current future-onset signal is not sufficient because v0 does not receive
+> future incident information. The next version must beat pure STID on
+> observed-event or matched-impact windows.
 
 Next checks:
 

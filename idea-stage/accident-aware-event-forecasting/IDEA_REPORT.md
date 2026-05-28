@@ -141,13 +141,15 @@ Therefore the safe main idea is not any single generic component. The safer nove
 
 这个组合比纯 counterfactual 更安全，比纯 router 更有事故机制，也能避开 RAST/MoE/IGSTGNN 的直接覆盖。
 
+**Hard evaluation bar**: 新模块必须以纯 `STID` 作为主要对手。打赢 `STIDAccident` 只能说明 naive accident embedding 被修正，不能单独构成方法有效性。每个新模块在训练前必须写清楚公式/架构图，避免只堆实验。
+
 ## Immediate Pilot Plan
 
 | Pilot | Time | Success Signal |
 | --- | --- | --- |
 | Retrieval-only incident memory | done | NEGATIVE: top-k historical incident residual retrieval was worse than normal prior in all four counties |
 | Linear sparse-residual proxy | done | POSITIVE FOR GATING: dense ridge residual was noisy, but impact-score gated residual improved all four counties |
-| STID + gated accident residual router | done | MIXED overall: beats STIDAccident on all counties, beats pure STID only on Alameda; next check accident-window/post-incident metrics |
+| STID + gated accident residual router | done | MIXED: beats STIDAccident on all counties, but does not robustly beat pure STID; see `EVENT_METRIC_ANALYSIS.md` and `MODULE_ARCHITECTURE.md` |
 | Counterfactual residual target construction | 2-4 天 | matched no-event baseline 能稳定解释 normal traffic，事故 residual 有非零结构 |
 
 ## Novelty Check Artifacts

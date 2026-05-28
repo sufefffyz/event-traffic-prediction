@@ -1,0 +1,38 @@
+# STID Gated Accident Architecture
+
+Current STIDGatedAccident data flow: pure STID base branch plus a sparse
+accident residual branch.
+
+```mermaid
+flowchart LR
+    X["History tensor<br/>flow, time, day, accident"] --> TS["Temporal conv<br/>history embedding"]
+    X --> TID["Time-of-day<br/>embedding"]
+    X --> DOW["Day-of-week<br/>embedding"]
+    NODE["Node identity<br/>embedding"] --> BASEIN["STID feature concat"]
+    TS --> BASEIN
+    TID --> BASEIN
+    DOW --> BASEIN
+    BASEIN --> BASEENC["STID MLP encoder"]
+    BASEENC --> YBASE["Base forecast<br/>Y_base"]
+
+    X --> AMASK["Accident-active mask<br/>m_i = 1 if history has accident"]
+    AMASK --> AEMB["Binary accident<br/>embedding"]
+    BASEENC --> RIN["Router input concat"]
+    AEMB --> RIN
+    RIN --> RENC["Residual-router MLP"]
+    RENC --> GATE["Sigmoid gate<br/>g_{i,h}"]
+    RENC --> RES["Residual head<br/>r_{i,h}"]
+    AMASK --> SPARSE["Sparse mask<br/>m_i"]
+    GATE --> MIX["m_i * g_{i,h} * r_{i,h}"]
+    RES --> MIX
+    SPARSE --> MIX
+    YBASE --> OUT["Final forecast<br/>Y_hat = Y_base + sparse residual"]
+    MIX --> OUT
+
+    classDef base fill:#e8f1fb,stroke:#3b6ea8,stroke-width:1px,color:#111;
+    classDef event fill:#fff2cc,stroke:#a77b00,stroke-width:1px,color:#111;
+    classDef output fill:#e7f4e4,stroke:#3b7d3b,stroke-width:1px,color:#111;
+    class TS,TID,DOW,NODE,BASEIN,BASEENC,YBASE base;
+    class AMASK,AEMB,RIN,RENC,GATE,RES,SPARSE,MIX event;
+    class OUT output;
+```

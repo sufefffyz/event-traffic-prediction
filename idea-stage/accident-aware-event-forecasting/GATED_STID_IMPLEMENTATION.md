@@ -22,6 +22,11 @@ The current implementation uses:
 
 This directly follows the pilot result: dense residual correction caused negative transfer, while impact-gated residual correction improved all four county subsets.
 
+Detailed formulas and the architecture diagram are now recorded in
+`MODULE_ARCHITECTURE.md`. Future module variants should update that file before
+launching training, and should use pure `STID` as the main baseline rather than
+only comparing with `STIDAccident`.
+
 ## Configs
 
 Added county configs:
