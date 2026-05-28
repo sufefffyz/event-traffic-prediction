@@ -32,6 +32,16 @@ class STIDOracleFutureAccident(nn.Module):
         self.future_event_dim = model_args.get("future_event_dim", 32)
         self.residual_num_layer = model_args.get("residual_num_layer", 2)
         self.gate_init_bias = model_args.get("gate_init_bias", -1.0)
+        self.register_buffer(
+            "future_started_kernel",
+            torch.triu(torch.ones(self.output_len, self.output_len)),
+            persistent=False,
+        )
+        self.register_buffer(
+            "future_remaining_kernel",
+            torch.tril(torch.ones(self.output_len, self.output_len)),
+            persistent=False,
+        )
 
         if self.if_spatial:
             self.node_emb = nn.Parameter(torch.empty(self.num_nodes, self.node_dim))
@@ -119,8 +129,15 @@ class STIDOracleFutureAccident(nn.Module):
 
     def _future_event_features(self, future_data: torch.Tensor) -> torch.Tensor:
         future_accident = (future_data[..., self.accident_feature_index] > 0).float()
-        started = future_accident.cumsum(dim=1).clamp_(0, 1)
-        remaining = future_accident.flip(dims=[1]).cumsum(dim=1).flip(dims=[1]).clamp_(0, 1)
+        event_by_node = future_accident.transpose(1, 2)
+        started = torch.matmul(
+            event_by_node,
+            self.future_started_kernel.to(future_accident.dtype),
+        ).transpose(1, 2).clamp(0, 1)
+        remaining = torch.matmul(
+            event_by_node,
+            self.future_remaining_kernel.to(future_accident.dtype),
+        ).transpose(1, 2).clamp(0, 1)
         future_any = future_accident.amax(dim=1, keepdim=True).expand_as(future_accident)
         event_features = torch.stack(
             [future_accident, started, remaining, future_any],
