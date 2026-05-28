@@ -30,15 +30,14 @@ The oracle branch builds future event features for each horizon `h` and node
 
 ```text
 e_{h,i}         = 1[future accident at horizon h, node i]
-started_{h,i}   = 1[sum_{k<=h} e_{k,i} > 0]
-remaining_{h,i} = 1[sum_{k>=h} e_{k,i} > 0]
 any_i           = 1[sum_h e_{h,i} > 0]
+tau_h           = h / H
 ```
 
 The prediction is:
 
 ```text
-F = EventConv([e, started, remaining, any])
+F = EventConv([e, any, tau * any, (1 - tau) * any])
 H_h = concat(Z, F_h)
 Y_hat_h = Y_base_h + any_i * sigmoid(G(H_h)) * R(H_h)
 ```

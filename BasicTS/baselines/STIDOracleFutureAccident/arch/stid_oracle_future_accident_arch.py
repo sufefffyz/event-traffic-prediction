@@ -32,16 +32,6 @@ class STIDOracleFutureAccident(nn.Module):
         self.future_event_dim = model_args.get("future_event_dim", 32)
         self.residual_num_layer = model_args.get("residual_num_layer", 2)
         self.gate_init_bias = model_args.get("gate_init_bias", -1.0)
-        self.register_buffer(
-            "future_started_kernel",
-            torch.triu(torch.ones(self.output_len, self.output_len)),
-            persistent=False,
-        )
-        self.register_buffer(
-            "future_remaining_kernel",
-            torch.tril(torch.ones(self.output_len, self.output_len)),
-            persistent=False,
-        )
 
         if self.if_spatial:
             self.node_emb = nn.Parameter(torch.empty(self.num_nodes, self.node_dim))
@@ -83,8 +73,8 @@ class STIDOracleFutureAccident(nn.Module):
             bias=True,
         )
 
-        # Channels: event at horizon, event started by horizon, event remaining,
-        # and future-any. All are event covariates, never future flow.
+        # Channels: event at horizon, future-any, horizon position, and reverse
+        # horizon position. All are event/time covariates, never future flow.
         self.future_event_encoder = nn.Sequential(
             nn.Conv2d(4, self.future_event_dim, kernel_size=(1, 3), padding=(0, 1)),
             nn.ReLU(),
@@ -129,18 +119,18 @@ class STIDOracleFutureAccident(nn.Module):
 
     def _future_event_features(self, future_data: torch.Tensor) -> torch.Tensor:
         future_accident = (future_data[..., self.accident_feature_index] > 0).float()
-        event_by_node = future_accident.transpose(1, 2)
-        started = torch.matmul(
-            event_by_node,
-            self.future_started_kernel.to(future_accident.dtype),
-        ).transpose(1, 2).clamp(0, 1)
-        remaining = torch.matmul(
-            event_by_node,
-            self.future_remaining_kernel.to(future_accident.dtype),
-        ).transpose(1, 2).clamp(0, 1)
         future_any = future_accident.amax(dim=1, keepdim=True).expand_as(future_accident)
+        horizon = torch.linspace(
+            0.0,
+            1.0,
+            self.output_len,
+            device=future_accident.device,
+            dtype=future_accident.dtype,
+        ).view(1, self.output_len, 1)
+        horizon = horizon.expand_as(future_accident) * future_any
+        reverse_horizon = (1.0 - horizon) * future_any
         event_features = torch.stack(
-            [future_accident, started, remaining, future_any],
+            [future_accident, future_any, horizon, reverse_horizon],
             dim=1,
         )
         return event_features.permute(0, 1, 3, 2).contiguous()
