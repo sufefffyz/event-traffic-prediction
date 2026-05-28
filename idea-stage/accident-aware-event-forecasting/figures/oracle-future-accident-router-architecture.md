@@ -1,0 +1,22 @@
+# Oracle Future Accident Router
+
+```mermaid
+flowchart LR
+    X[History traffic and time features] --> B[STID encoder]
+    B --> YB[Base prediction]
+    F[Future accident sequence] --> EF[Event feature builder]
+    EF --> EC[Horizon event convolution]
+    B --> C[Concat base context per horizon]
+    EC --> C
+    C --> G[Gate]
+    C --> R[Residual]
+    F --> M[Future-any mask]
+    G --> A[Masked additive correction]
+    R --> A
+    M --> A
+    YB --> OUT[Oracle forecast]
+    A --> OUT
+
+    classDef oracle fill:#fff2cc,stroke:#bf8f00,color:#111;
+    class F,EF,EC,M oracle;
+```

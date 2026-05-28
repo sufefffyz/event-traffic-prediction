@@ -190,3 +190,16 @@ L = L_all
 
 This V1 is not yet implemented. Before training it, add a concrete architecture
 diagram and BasicTS config note beside this file.
+
+## Oracle Future Accident Router
+
+The aggressive upper-bound variant is now specified separately:
+
+- `ORACLE_FUTURE_ACCIDENT_ROUTER.md`
+- `figures/oracle-future-accident-router-architecture.mmd`
+- `figures/oracle-future-accident-router-architecture.md`
+
+This module reads future accident covariates, so it is not a deployable setting.
+Its only purpose is to test whether known future event labels can create a clear
+positive signal over pure STID on `future_onset`, `future_any`, `ongoing`, and
+high-impact event slices.
