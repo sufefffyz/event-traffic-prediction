@@ -160,6 +160,7 @@ Therefore the safe main idea is not any single generic component. The safer nove
 - `SPARSE_ROUTER_PILOT_RESULTS.md`: ridge residual expert pilot. It was mixed/mostly negative, supporting the need for sparse local gating.
 - `EVENT_FACTOR_ANALYSIS.md`: event type, post-mile relation, and matched-control impact slices. It suggests V1 should be type-aware, direction-aware, and high-impact-window-aware to beat pure STID.
 - `V1_DIRECTIONAL_IMPACT_ROUTER.md`: concrete V1 module design with formula, no-leakage rule, training objective, and architecture diagram.
+- `POSTHOC_RESIDUAL_PILOT.md`: first low-cost V1 residual pilot. It is negative, so the current residual target/gate should be revised before full BasicTS implementation.
 - `.aris/traces/novelty-check/2026-05-27_run01/trace.md`: ARIS trace record.
 
 ## Sources

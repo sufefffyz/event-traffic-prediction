@@ -1,0 +1,75 @@
+{
+  "counties": {
+    "Alameda": {
+      "calibration_records": 32679,
+      "calibration_rows": 2590,
+      "data_shape": [
+        25920,
+        521,
+        4
+      ],
+      "evaluation_records": 31817,
+      "evaluation_rows": 2590,
+      "result_dir": "BasicTS/checkpoints/STID/TraffiDent_Alameda_2023Q1_100_12_12_pure/1f0d94b78367d0e3c0f0fdd600c9b2f0/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    "ContraCosta": {
+      "calibration_records": 21199,
+      "calibration_rows": 2590,
+      "data_shape": [
+        25920,
+        496,
+        4
+      ],
+      "evaluation_records": 21105,
+      "evaluation_rows": 2590,
+      "result_dir": "BasicTS/checkpoints/STID/TraffiDent_ContraCosta_2023Q1_100_12_12_pure/dcfedb4404ed19f835999f1b5b0aeeb5/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    "LosAngeles": {
+      "calibration_records": 188294,
+      "calibration_rows": 2590,
+      "data_shape": [
+        25920,
+        1771,
+        4
+      ],
+      "evaluation_records": 149631,
+      "evaluation_rows": 2590,
+      "result_dir": "BasicTS/checkpoints/STID/TraffiDent_LosAngeles_2023Q1_100_12_12_pure/cea61eeacc9895585b9d57ce73a666f5/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    "Orange": {
+      "calibration_records": 54257,
+      "calibration_rows": 2590,
+      "data_shape": [
+        25920,
+        990,
+        4
+      ],
+      "evaluation_records": 44331,
+      "evaluation_rows": 2590,
+      "result_dir": "BasicTS/checkpoints/STID/TraffiDent_Orange_2023Q1_100_12_12_pure/61962a5bc414e6aa3e3d288a2850d204/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    }
+  },
+  "feature_dim": 25,
+  "files": {
+    "metrics_csv": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_posthoc_residual_pilot/posthoc_residual_pilot_metrics.csv",
+    "summary_csv": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_posthoc_residual_pilot/posthoc_residual_pilot_summary.csv"
+  },
+  "mode": "test_result calibration split; exploratory only",
+  "train_records_total": 296429
+}

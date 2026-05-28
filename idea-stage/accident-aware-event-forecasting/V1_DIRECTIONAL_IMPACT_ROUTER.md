@@ -1,7 +1,7 @@
 # V1 Module Design: Directional Impact Router
 
 **Last update**: 2026-05-28 13:35 Asia/Shanghai
-**Status**: design only, not implemented
+**Status**: design only, not implemented; first post-hoc ridge residual pilot is negative
 **Primary baseline**: pure `STID`
 
 ## Objective
@@ -219,6 +219,14 @@ Before implementing a full BasicTS runner, run a post-hoc residual pilot:
 This directly tests whether the proposed features can correct STID. If the
 post-hoc residual cannot beat STID on high-impact/post-last slices, a full
 neural implementation is unlikely to help.
+
+Pilot result:
+
+- `POSTHOC_RESIDUAL_PILOT.md` reports a negative result.
+- The weighted ridge residual worsened every key four-county mean event group,
+  including `post_last_slot`, `ongoing`, and high-impact windows.
+- Do not implement this exact V1 until the residual target/gate is revised or
+  proper STID train/val predictions are generated.
 
 ## Implementation Notes
 
