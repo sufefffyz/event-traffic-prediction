@@ -139,4 +139,4 @@ Interpretation:
 
 - No training errors were found in the LA, Orange, Alameda, or ContraCosta logs.
 - `test_results` directories contain saved predictions/targets/inputs for the best evaluated checkpoints.
-- Next analysis should compare event-window/post-incident metrics, because overall MAE partly washes out sparse accident effects.
+- Event-window/post-incident metrics are now summarized in `EVENT_METRIC_ANALYSIS.md`.

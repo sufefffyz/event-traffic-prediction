@@ -1,0 +1,271 @@
+{
+  "counties": [
+    "LosAngeles",
+    "Orange",
+    "Alameda",
+    "ContraCosta"
+  ],
+  "files": {
+    "compact_csv": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_model_event_metrics/traffident_model_event_metrics_compact.csv",
+    "metrics_csv": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_model_event_metrics/traffident_model_event_metrics.csv"
+  },
+  "groups": {
+    "all": "all test node-windows",
+    "future_any": "future window has accident",
+    "future_onset": "history has no accident, future has accident",
+    "history_any": "history window has accident",
+    "history_only": "history has accident, future has no accident",
+    "no_event": "no accident in history or future window",
+    "ongoing": "history has accident and future has accident",
+    "post_last_slot": "last history slot has accident"
+  },
+  "metadata": [
+    {
+      "county": "LosAngeles",
+      "data_shape": [
+        25920,
+        1771,
+        4
+      ],
+      "model": "STID",
+      "prediction_shape": [
+        5180,
+        12,
+        1771,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STID/TraffiDent_LosAngeles_2023Q1_100_12_12_pure/cea61eeacc9895585b9d57ce73a666f5/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "LosAngeles",
+      "data_shape": [
+        25920,
+        1771,
+        4
+      ],
+      "model": "STIDAccident",
+      "prediction_shape": [
+        5180,
+        12,
+        1771,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STIDAccident/TraffiDent_LosAngeles_2023Q1_100_12_12_accident/0810f65f1c81ea6c197470f18383ecc0/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "LosAngeles",
+      "data_shape": [
+        25920,
+        1771,
+        4
+      ],
+      "model": "STIDGatedAccident",
+      "prediction_shape": [
+        5180,
+        12,
+        1771,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STIDGatedAccident/TraffiDent_LosAngeles_2023Q1_100_12_12_gated_accident/2742d597068ff19e251df0b9964af382/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "Orange",
+      "data_shape": [
+        25920,
+        990,
+        4
+      ],
+      "model": "STID",
+      "prediction_shape": [
+        5180,
+        12,
+        990,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STID/TraffiDent_Orange_2023Q1_100_12_12_pure/61962a5bc414e6aa3e3d288a2850d204/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "Orange",
+      "data_shape": [
+        25920,
+        990,
+        4
+      ],
+      "model": "STIDAccident",
+      "prediction_shape": [
+        5180,
+        12,
+        990,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STIDAccident/TraffiDent_Orange_2023Q1_100_12_12_accident/9ef70961a7897a8e85adcb241f1b17ff/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "Orange",
+      "data_shape": [
+        25920,
+        990,
+        4
+      ],
+      "model": "STIDGatedAccident",
+      "prediction_shape": [
+        5180,
+        12,
+        990,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STIDGatedAccident/TraffiDent_Orange_2023Q1_100_12_12_gated_accident/e5986ea714679cd5c7e0d08413b634e4/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "Alameda",
+      "data_shape": [
+        25920,
+        521,
+        4
+      ],
+      "model": "STID",
+      "prediction_shape": [
+        5180,
+        12,
+        521,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STID/TraffiDent_Alameda_2023Q1_100_12_12_pure/1f0d94b78367d0e3c0f0fdd600c9b2f0/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "Alameda",
+      "data_shape": [
+        25920,
+        521,
+        4
+      ],
+      "model": "STIDAccident",
+      "prediction_shape": [
+        5180,
+        12,
+        521,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STIDAccident/TraffiDent_Alameda_2023Q1_100_12_12_accident/7f2783390413ef40acba8c2897dffa4c/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "Alameda",
+      "data_shape": [
+        25920,
+        521,
+        4
+      ],
+      "model": "STIDGatedAccident",
+      "prediction_shape": [
+        5180,
+        12,
+        521,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STIDGatedAccident/TraffiDent_Alameda_2023Q1_100_12_12_gated_accident/c2e7a0b7230869ca07041f6c44f746a9/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "ContraCosta",
+      "data_shape": [
+        25920,
+        496,
+        4
+      ],
+      "model": "STID",
+      "prediction_shape": [
+        5180,
+        12,
+        496,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STID/TraffiDent_ContraCosta_2023Q1_100_12_12_pure/dcfedb4404ed19f835999f1b5b0aeeb5/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "ContraCosta",
+      "data_shape": [
+        25920,
+        496,
+        4
+      ],
+      "model": "STIDAccident",
+      "prediction_shape": [
+        5180,
+        12,
+        496,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STIDAccident/TraffiDent_ContraCosta_2023Q1_100_12_12_accident/5b781156b6d58c7302fe76f33c98474e/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    {
+      "county": "ContraCosta",
+      "data_shape": [
+        25920,
+        496,
+        4
+      ],
+      "model": "STIDGatedAccident",
+      "prediction_shape": [
+        5180,
+        12,
+        496,
+        1
+      ],
+      "result_dir": "BasicTS/checkpoints/STIDGatedAccident/TraffiDent_ContraCosta_2023Q1_100_12_12_gated_accident/895b18270447cef32d32ee42e7bb34f8/test_results",
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    }
+  ],
+  "models": [
+    "STID",
+    "STIDAccident",
+    "STIDGatedAccident"
+  ],
+  "null_val": 0.0,
+  "output_dir": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_model_event_metrics"
+}

@@ -54,6 +54,7 @@ IGSTGNN 已经把事故影响建模为 incident-context spatial fusion 和 tempo
 - **Risk**: MEDIUM-LOW.
 - **Estimated effort**: 2-4 周。
 - **Why worth doing**: 工程最稳，能直接回答“为什么 naive accident embedding 不起作用”。
+- **Current evidence**: 训练版 `STIDGatedAccident` 在四县整体 MAE 上稳定优于 `STIDAccident`，但只在 Alameda 优于纯 `STID`。事件切片后，`future_onset/future_any` 是最有希望的区域：gated 对纯 STID 平均 MAE 分别为 -0.0128/-0.0080，均为 3/4 county 胜出；`post_last/history_only` 仍不稳定。详见 `EVENT_METRIC_ANALYSIS.md`。
 
 ### Idea 4: Event-Conditioned Propagation Field
 
