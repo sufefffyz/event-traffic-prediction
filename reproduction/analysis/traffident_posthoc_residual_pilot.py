@@ -282,6 +282,7 @@ def build_design_for_county(
     county: str,
     county_id: int,
     data: np.ndarray,
+    event_bool: np.ndarray,
     index: np.ndarray,
     pred: np.ndarray,
     target: np.ndarray,
@@ -302,7 +303,9 @@ def build_design_for_county(
     for row in rows:
         nodes = np.flatnonzero(masks["history_any"][row])
         for node in nodes:
-            type_id, relation_id, signed_pm, distance, age_slots = latest_event_features(row, int(node), index, data[:, :, args.event_channel] > 0, attrs)
+            type_id, relation_id, signed_pm, distance, age_slots = latest_event_features(
+                row, int(node), index, event_bool, attrs
+            )
             start, mid, _ = index[row]
             pre = flow[start:mid, node]
             if not np.all(np.isfinite(pre)):
@@ -430,6 +433,7 @@ def main() -> None:
     metadata = {"mode": "test_result calibration split; exploratory only", "counties": {}}
 
     for county_id, county in enumerate(args.counties):
+        print(f"[build] {county}", flush=True)
         data_dir = data_root / f"TraffiDent_{county}_2023Q1"
         data = np.load(data_dir / "data.npz")["data"]
         index = np.load(data_dir / "index.npz")["test"].astype(np.int64)
@@ -451,6 +455,7 @@ def main() -> None:
             county=county,
             county_id=county_id,
             data=data,
+            event_bool=event,
             index=index,
             pred=pred,
             target=target,
@@ -464,6 +469,7 @@ def main() -> None:
             all_x.append(x)
             all_y.append(y)
             all_w.append(w)
+        print(f"[build] {county} calibration_records={len(x)}", flush=True)
         county_cache[county] = {
             "data": data,
             "index": index,
@@ -472,6 +478,7 @@ def main() -> None:
             "masks": masks,
             "attrs": attrs,
             "impact": impact,
+            "event_bool": event,
             "calib_rows": calib_rows,
             "eval_rows": eval_rows,
         }
@@ -487,18 +494,21 @@ def main() -> None:
     x_train = np.concatenate(all_x, axis=0)
     y_train = np.concatenate(all_y, axis=0)
     w_train = np.concatenate(all_w, axis=0)
+    print(f"[fit] records={len(x_train)} features={x_train.shape[1]}", flush=True)
     coef = weighted_ridge(x_train, y_train, w_train, args.ridge_alpha)
     metadata["train_records_total"] = int(len(x_train))
     metadata["feature_dim"] = int(x_train.shape[1])
 
     result_rows = []
     for county_id, county in enumerate(args.counties):
+        print(f"[eval] {county}", flush=True)
         cache = county_cache[county]
         eval_rows = cache["eval_rows"]
         x_eval, _, _, locations = build_design_for_county(
             county=county,
             county_id=county_id,
             data=cache["data"],
+            event_bool=cache["event_bool"],
             index=cache["index"],
             pred=cache["pred"],
             target=cache["target"],
@@ -527,6 +537,7 @@ def main() -> None:
             )
         )
         metadata["counties"][county]["evaluation_records"] = int(len(x_eval))
+        print(f"[eval] {county} evaluation_records={len(x_eval)}", flush=True)
 
     df = pd.DataFrame(result_rows)
     df.to_csv(output_dir / "posthoc_residual_pilot_metrics.csv", index=False)
