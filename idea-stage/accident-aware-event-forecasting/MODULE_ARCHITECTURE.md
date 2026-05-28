@@ -141,6 +141,13 @@ should not treat every accident-active node equally. The residual branch should
 be conditioned by accident type, direction-aware post-mile relation, and
 matched-control impact magnitude.
 
+Full V1 design note:
+
+- `V1_DIRECTIONAL_IMPACT_ROUTER.md`
+- `figures/directional-impact-router-architecture.mmd`
+- `figures/directional-impact-router-architecture.md`
+- `figures/directional-impact-router-architecture.png`
+
 Proposed forecast form:
 
 ```text
