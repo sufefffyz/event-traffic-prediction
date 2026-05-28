@@ -158,6 +158,7 @@ Therefore the safe main idea is not any single generic component. The safer nove
 - `REVIEW_SUMMARY.md`: reviewer critique and final paper framing.
 - `PILOT_RESULTS.md`: first training-free retrieval memory pilot. It was negative, so retrieval is downgraded to a baseline/component.
 - `SPARSE_ROUTER_PILOT_RESULTS.md`: ridge residual expert pilot. It was mixed/mostly negative, supporting the need for sparse local gating.
+- `EVENT_FACTOR_ANALYSIS.md`: event type, post-mile relation, and matched-control impact slices. It suggests V1 should be type-aware, direction-aware, and high-impact-window-aware to beat pure STID.
 - `.aris/traces/novelty-check/2026-05-27_run01/trace.md`: ARIS trace record.
 
 ## Sources

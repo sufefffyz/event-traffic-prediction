@@ -1,0 +1,137 @@
+{
+  "counties": [
+    "LosAngeles",
+    "Orange",
+    "Alameda",
+    "ContraCosta"
+  ],
+  "files": {
+    "compact_csv": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_event_factor_metrics/event_factor_metrics_compact.csv",
+    "gated_summary_csv": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_event_factor_metrics/event_factor_gated_summary.csv",
+    "metrics_csv": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_event_factor_metrics/event_factor_metrics.csv"
+  },
+  "metadata": {
+    "Alameda": {
+      "data_shape": [
+        25920,
+        521,
+        4
+      ],
+      "factor_mask_count": 48,
+      "incident_rows": 2756,
+      "incident_types": [
+        "1141",
+        "NoInj",
+        "UnknInj"
+      ],
+      "relation_definition": {
+        "at_source": "|signed_downstream_pm| <= 0.025",
+        "downstream": "signed_downstream_pm > 0.025",
+        "signed_downstream_pm": "(sensor_abs_pm - incident_abs_pm) * sign(Direction), sign=+1 for N/E and -1 for S/W",
+        "upstream": "signed_downstream_pm < -0.025"
+      },
+      "relations": [
+        "at_source",
+        "downstream",
+        "upstream"
+      ],
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    "ContraCosta": {
+      "data_shape": [
+        25920,
+        496,
+        4
+      ],
+      "factor_mask_count": 48,
+      "incident_rows": 1590,
+      "incident_types": [
+        "1141",
+        "NoInj",
+        "UnknInj"
+      ],
+      "relation_definition": {
+        "at_source": "|signed_downstream_pm| <= 0.025",
+        "downstream": "signed_downstream_pm > 0.025",
+        "signed_downstream_pm": "(sensor_abs_pm - incident_abs_pm) * sign(Direction), sign=+1 for N/E and -1 for S/W",
+        "upstream": "signed_downstream_pm < -0.025"
+      },
+      "relations": [
+        "at_source",
+        "downstream",
+        "upstream"
+      ],
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    "LosAngeles": {
+      "data_shape": [
+        25920,
+        1771,
+        4
+      ],
+      "factor_mask_count": 48,
+      "incident_rows": 13911,
+      "incident_types": [
+        "1141",
+        "NoInj",
+        "UnknInj"
+      ],
+      "relation_definition": {
+        "at_source": "|signed_downstream_pm| <= 0.025",
+        "downstream": "signed_downstream_pm > 0.025",
+        "signed_downstream_pm": "(sensor_abs_pm - incident_abs_pm) * sign(Direction), sign=+1 for N/E and -1 for S/W",
+        "upstream": "signed_downstream_pm < -0.025"
+      },
+      "relations": [
+        "at_source",
+        "downstream",
+        "upstream"
+      ],
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    },
+    "Orange": {
+      "data_shape": [
+        25920,
+        990,
+        4
+      ],
+      "factor_mask_count": 48,
+      "incident_rows": 3843,
+      "incident_types": [
+        "1141",
+        "NoInj",
+        "UnknInj"
+      ],
+      "relation_definition": {
+        "at_source": "|signed_downstream_pm| <= 0.025",
+        "downstream": "signed_downstream_pm > 0.025",
+        "signed_downstream_pm": "(sensor_abs_pm - incident_abs_pm) * sign(Direction), sign=+1 for N/E and -1 for S/W",
+        "upstream": "signed_downstream_pm < -0.025"
+      },
+      "relations": [
+        "at_source",
+        "downstream",
+        "upstream"
+      ],
+      "test_index_shape": [
+        5180,
+        3
+      ]
+    }
+  },
+  "models": [
+    "STID",
+    "STIDAccident",
+    "STIDGatedAccident"
+  ],
+  "output_dir": "/home/yuzhang_fei/code/event-traffic-prediction-git/reproduction/analysis/traffident_event_factor_metrics"
+}

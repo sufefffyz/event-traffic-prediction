@@ -133,3 +133,53 @@ L = L_all
 Where `L_event_impact` is computed on event windows with matched-control traffic
 change above a threshold. This directly encodes the requirement: improve where
 accidents matter, and do not pay for it by hurting normal traffic.
+
+## V1 Candidate: Directional Impact Router
+
+The factor analysis in `EVENT_FACTOR_ANALYSIS.md` suggests that a stronger V1
+should not treat every accident-active node equally. The residual branch should
+be conditioned by accident type, direction-aware post-mile relation, and
+matched-control impact magnitude.
+
+Proposed forecast form:
+
+```text
+phi_{i,k} = concat(
+    h_i,
+    Emb(type),
+    Emb(relation),
+    signed_downstream_pm,
+    distance_pm,
+    horizon_emb(k),
+    pre_state_i
+)
+
+m_{i,k}^{local} = LocalMask(type, relation, distance_pm, k)
+g_{i,k} = sigmoid(MLP_gate(phi_{i,k}))
+r_{i,k} = MLP_residual(phi_{i,k})
+
+Y_hat[i,k] = Y_STID[i,k] + m_{i,k}^{local} * g_{i,k} * r_{i,k}
+```
+
+Key differences from V0:
+
+- `m_{i,k}` becomes horizon- and geometry-aware instead of a single history
+  accident binary;
+- the router sees `type` and downstream/upstream relation explicitly;
+- drop and recovery-rise windows should be separated, because current errors
+  show opposite bias signs;
+- event loss should focus on high-impact matched-control windows, where V0
+  currently fails to beat STID.
+
+Candidate training objective:
+
+```text
+L = L_all
+  + lambda_high * L_high_impact
+  + lambda_drop * L_drop_bias
+  + lambda_rise * L_rise_bias
+  + lambda_normal * max(0, MAE_no_event(model) - MAE_no_event(STID) + margin)
+```
+
+This V1 is not yet implemented. Before training it, add a concrete architecture
+diagram and BasicTS config note beside this file.
