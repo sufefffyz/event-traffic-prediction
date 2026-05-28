@@ -7,7 +7,7 @@
 - **One-line**: Learn accident-induced residuals over a normal-traffic baseline and route them sparsely to affected node-horizon pairs.
 - **Novelty score**: 6.5/10 after check.
 - **Reviewer assessment**: Strongest feasible method skeleton, but must avoid being generic MoE/gating.
-- **Pilot result**: POSITIVE FOR GATING. A dense/global ridge residual expert mostly worsened persistence, but an impact-score gated residual expert improved all four counties. This supports sparse/local gating rather than dense residual correction.
+- **Pilot result**: POSITIVE FOR GATING; MIXED AS A TRAINED MODEL. A dense/global ridge residual expert mostly worsened persistence, but an impact-score gated residual expert improved all four counties. The trained BasicTS `STIDGatedAccident` beats `STIDAccident` on all four counties, but beats pure `STID` only on Alameda under overall MAE.
 - **Estimated effort**: 2-6 weeks for a BasicTS prototype and first full run.
 - **Why selected first**: Best balance between feasibility, current evidence, and paper narrative.
 

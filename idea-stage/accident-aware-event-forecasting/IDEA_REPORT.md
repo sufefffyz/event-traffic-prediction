@@ -146,7 +146,7 @@ Therefore the safe main idea is not any single generic component. The safer nove
 | --- | --- | --- |
 | Retrieval-only incident memory | done | NEGATIVE: top-k historical incident residual retrieval was worse than normal prior in all four counties |
 | Linear sparse-residual proxy | done | POSITIVE FOR GATING: dense ridge residual was noisy, but impact-score gated residual improved all four counties |
-| STID + gated accident residual router | next | overall 不降，事故邻域/长 horizon MAE 或 signed bias 改善 |
+| STID + gated accident residual router | done | MIXED overall: beats STIDAccident on all counties, beats pure STID only on Alameda; next check accident-window/post-incident metrics |
 | Counterfactual residual target construction | 2-4 天 | matched no-event baseline 能稳定解释 normal traffic，事故 residual 有非零结构 |
 
 ## Novelty Check Artifacts
