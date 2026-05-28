@@ -115,7 +115,7 @@ def init_acc() -> Dict[str, Dict[str, float]]:
         item["node_windows"] = 0
         item["valid_values"] = 0
         for horizon in (1, 3, 6, 12):
-            item[f"h{h}_valid_values"] = 0
+            item[f"h{horizon}_valid_values"] = 0
         acc[group] = item
     return acc
 
