@@ -408,6 +408,29 @@ Before full BasicTS implementation, do a low-cost post-hoc pilot:
 If this post-hoc pilot fails, do not implement the full model yet; first fix
 event matching radius or incident impact labels.
 
+Implemented pilot script:
+
+```text
+reproduction/analysis/traffident_decay_kernel_pilot.py
+```
+
+This first trial keeps decay scales as hyperparameters:
+
+$$
+K_{h,i,m}
+=
+\exp\left(-\frac{|d_{i,m}|}{\lambda_s}\right)
+\cdot
+\begin{cases}
+\exp\left(-\frac{\delta_{h,m}}{\lambda_t^+}\right), & \delta_{h,m}\ge 0 \\
+\exp\left(\frac{\delta_{h,m}}{\lambda_t^-}\right), & \delta_{h,m}<0
+\end{cases}
+$$
+
+Then it uses typed / directional kernel features in a ridge residual model. This
+is intentionally simpler than the full V2 architecture, so the first question is
+only whether an explicit distance-decay prior has positive signal.
+
 ## References
 
 - TraffiDent: https://arxiv.org/abs/2407.11477
