@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from reproduction.analysis.traffident_decay_kernel_pilot import (
     COUNTIES,
