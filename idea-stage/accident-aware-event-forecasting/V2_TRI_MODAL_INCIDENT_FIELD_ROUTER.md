@@ -431,6 +431,79 @@ Then it uses typed / directional kernel features in a ridge residual model. This
 is intentionally simpler than the full V2 architecture, so the first question is
 only whether an explicit distance-decay prior has positive signal.
 
+### 2026-05-29 First Decay-Kernel Pilot
+
+Server output:
+
+```text
+reproduction/analysis/traffident_decay_kernel_pilot_4county_dist05_t6_12_samedir_alpha1000_clip5
+```
+
+Setting:
+
+```text
+max_distance = 0.5 mile
+max_pre_slots = 6
+max_post_slots = 12
+same_direction_only = true
+ridge_alpha = 1000
+clip_residual = 5
+lambda_space = 1.0
+lambda_time_post = 6
+lambda_time_pre = 3
+```
+
+Four-county summary:
+
+| Slice | Mean Delta vs STID MAE | Wins |
+| --- | ---: | ---: |
+| `all_eval` | +0.0013 | 0/4 |
+| `kernel_candidate` | +0.0955 | 0/4 |
+| `future_any` | +0.1190 | 0/4 |
+| `future_onset` | +0.1186 | 0/4 |
+| `history_any` | +0.0550 | 0/4 |
+| `history_only` | +0.0472 | 0/4 |
+| `post_last_slot` | +0.1119 | 0/4 |
+| `ongoing` | +0.1236 | 1/4 |
+
+Bias diagnostic:
+
+| County / Slice | STID Bias | DecayKernel Bias | MAE Delta |
+| --- | ---: | ---: | ---: |
+| LosAngeles `future_any` | -1.5105 | -1.2959 | +0.1283 |
+| Orange `future_any` | -1.1146 | -1.3846 | +0.1121 |
+| Alameda `future_any` | -2.3545 | -1.4047 | +0.1932 |
+| ContraCosta `future_any` | +0.5630 | +0.2435 | +0.0425 |
+| ContraCosta `ongoing` | +1.6534 | +1.5777 | -0.0097 |
+
+Interpretation:
+
+- The simple exponential kernel does not beat pure `STID`.
+- The kernel mainly shifts bias toward zero, but this does not translate to MAE
+  improvement.
+- The bias pattern is not even consistent across counties: Alameda benefits in
+  mean bias but loses MAE, while Orange moves bias in the wrong direction on
+  `future_any`.
+- This suggests the current kernel identifies plausible affected records, but
+  the residual sign and magnitude are unreliable at the sample level.
+- The only local win is ContraCosta `ongoing` with `-0.0097` MAE, too small and
+  isolated to support the method.
+- Therefore, distance decay alone is not enough; the next version should not
+  simply tune \(\lambda\). It should revise the residual target/gate and add
+  stronger supervision for when the correction should be positive, negative, or
+  inactive.
+
+Decision:
+
+```text
+Do not implement the full BasicTS V2 yet.
+First improve the post-hoc objective:
+1. learn sign-aware drop/rise residual heads;
+2. gate by validation-estimated residual reliability, not just incident kernel;
+3. compare against a no-residual bias-only correction;
+4. only then return to trainable BasicTS integration.
+```
+
 ## References
 
 - TraffiDent: https://arxiv.org/abs/2407.11477
