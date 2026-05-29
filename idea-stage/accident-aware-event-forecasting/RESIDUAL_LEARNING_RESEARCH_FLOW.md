@@ -509,6 +509,69 @@ The implemented comparison set is:
 STID vs BiasOnly vs DecayKernel vs SignReliability
 ```
 
+### 2026-05-29 Four-County G3TRC Post-Hoc Pilot
+
+Server output:
+
+```text
+reproduction/analysis/traffident_sign_gsp_residual_pilot_4county_dist05_t6_12
+```
+
+The four-county run completed, but the validation-selected gate chose:
+
+```text
+threshold = 0.0
+scale = 0.0
+```
+
+So `SignReliability` became a no-op and exactly matched `STID`. This is a
+negative result: with the current feature set and ridge sign model, the safest
+validation choice is not to apply any sign residual correction.
+
+Metric summary:
+
+| Slice | BiasOnly Delta | DecayKernel Delta | SignReliability Delta |
+| --- | ---: | ---: | ---: |
+| `all_eval` | +0.0003 | +0.0013 | +0.0000 |
+| `future_any` | +0.0128 | +0.1190 | +0.0000 |
+| `future_onset` | +0.0118 | +0.1186 | +0.0000 |
+| `post_last_slot` | +0.0152 | +0.1119 | +0.0000 |
+| `ongoing` | +0.0214 | +0.1236 | +0.0000 |
+
+Residual-structure audit:
+
+- Temporal autocorrelation is consistently non-trivial:
+  - no-event is about `0.50-0.56`;
+  - event slices are also about `0.42-0.62`.
+- This does not show that event residuals have stronger temporal structure than
+  normal residuals; it mostly says STID residuals are temporally persistent in
+  general.
+- Graph autocorrelation is weak or inconsistent on key future-event slices:
+  - LosAngeles `future_any`: `-0.0356`;
+  - Orange `future_any`: `-0.3345`;
+  - Alameda `future_any`: `-0.0297`;
+  - ContraCosta `future_any`: `-0.0843`.
+- `post_last_slot` has a local graph signal in some counties, e.g.
+  LosAngeles `0.1117` and Orange `0.9964`, but not consistently across counties.
+
+Decision:
+
+```text
+Do not implement graph-TV projection yet.
+The current sign model is not reliable enough to provide a useful residual
+proposal, and the graph autocorrelation evidence is not broadly positive on
+future-event slices.
+```
+
+Next recommended direction:
+
+1. audit whether the target should be residual sign, residual quantile, or risk
+   inflation rather than mean correction;
+2. add stronger candidate labels from matched controls before trying another
+   residual predictor;
+3. consider pivoting the main claim toward uncertainty / tail-risk under
+   incidents if mean correction keeps collapsing to no-op.
+
 ## Sources
 
 - Residual Correction in Real-Time Traffic Forecasting, CIKM 2022:
