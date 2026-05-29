@@ -488,6 +488,27 @@ H_3:
 \text{ event-aware mean correction is too weak, so the paper should pivot to risk/uncertainty.}
 $$
 
+Implementation status, 2026-05-29:
+
+```text
+reproduction/analysis/traffident_sign_gsp_residual_pilot.py
+```
+
+The first implementation keeps the protocol post-hoc: it reuses saved pure
+`STID` `test_results`, constructs the same incident candidate support as the
+decay-kernel pilot, fits a loss-aware sign ridge model on the calibration split,
+tunes a reliability threshold on a held-out calibration slice, and writes:
+
+- `residual_structure_audit.csv`
+- `sign_gsp_metrics.csv`
+- `sign_gsp_summary.csv`
+
+The implemented comparison set is:
+
+```text
+STID vs BiasOnly vs DecayKernel vs SignReliability
+```
+
 ## Sources
 
 - Residual Correction in Real-Time Traffic Forecasting, CIKM 2022:
