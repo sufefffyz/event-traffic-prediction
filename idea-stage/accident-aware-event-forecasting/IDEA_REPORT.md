@@ -118,6 +118,28 @@ Therefore the safe main idea is not any single generic component. The safer nove
 
 > sparse node-horizon residual routing over a matched no-event baseline, optionally using retrieved historical incident residuals.
 
+## Residual Learning Update, 2026-05-29
+
+After the `DecayKernel` post-hoc pilot lost to a simple `BiasOnly` sanity
+baseline, the residual-learning direction was reframed with graph signal
+processing and loss-aware residual learning. The key conclusion is that the
+incident kernel should be treated as a candidate support prior, not as a direct
+residual predictor.
+
+The next candidate method is documented in
+`RESIDUAL_LEARNING_RESEARCH_FLOW.md`:
+
+```text
+G3TRC: Gradient-Guided Graph Trend Residual Corrector
+```
+
+Main idea:
+
+1. learn MAE-aware residual direction first (`drop/rise/no-change`);
+2. use reliability gating before applying any correction;
+3. impose graph-TV / temporal-TV structure only after a residual proposal exists;
+4. keep `BiasOnly` as a mandatory sanity baseline.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |
