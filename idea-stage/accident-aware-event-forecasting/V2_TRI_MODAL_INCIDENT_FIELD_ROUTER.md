@@ -504,6 +504,65 @@ First improve the post-hoc objective:
 4. only then return to trainable BasicTS integration.
 ```
 
+### 2026-05-29 BiasOnly Sanity Check
+
+Server output:
+
+```text
+reproduction/analysis/traffident_decay_kernel_pilot_4county_dist05_t6_12_samedir_alpha1000_clip5_biasonly
+```
+
+This rerun adds a `BiasOnly` correction: for each county, estimate the weighted
+mean residual on kernel-hit calibration records, then apply that scalar residual
+to kernel-hit evaluation records. It deliberately ignores type, distance,
+direction, and relative time details.
+
+Four-county comparison:
+
+| Slice | DecayKernel Delta | BiasOnly Delta | Decay Wins | BiasOnly Wins |
+| --- | ---: | ---: | ---: | ---: |
+| `all_eval` | +0.0013 | +0.0003 | 0/4 | 1/4 |
+| `kernel_candidate` | +0.0955 | +0.0220 | 0/4 | 1/4 |
+| `future_any` | +0.1190 | +0.0128 | 0/4 | 2/4 |
+| `future_onset` | +0.1186 | +0.0118 | 0/4 | 2/4 |
+| `history_any` | +0.0550 | +0.0103 | 0/4 | 2/4 |
+| `history_only` | +0.0472 | +0.0090 | 0/4 | 2/4 |
+| `post_last_slot` | +0.1119 | +0.0152 | 0/4 | 2/4 |
+| `ongoing` | +0.1236 | +0.0214 | 1/4 | 2/4 |
+
+County-level examples:
+
+| County / Slice | DecayKernel Delta | BiasOnly Delta |
+| --- | ---: | ---: |
+| LosAngeles `future_any` | +0.1283 | -0.0013 |
+| LosAngeles `ongoing` | +0.1033 | -0.0102 |
+| LosAngeles `post_last_slot` | +0.1203 | -0.0061 |
+| Alameda `future_any` | +0.1932 | +0.0465 |
+| ContraCosta `future_any` | +0.0425 | -0.0020 |
+| ContraCosta `post_last_slot` | +0.0637 | -0.0033 |
+
+Interpretation:
+
+- `BiasOnly` is much closer to `STID` than `DecayKernel` on every event slice.
+- `BiasOnly` gets small wins on LosAngeles and ContraCosta event slices where
+  `DecayKernel` is clearly worse.
+- Therefore the current typed/directional/time-decay feature details do not yet
+  add useful predictive structure beyond a simple local bias correction.
+- The problem is not just choosing a better \(\lambda\). The harder missing part
+  is deciding whether each incident-node-horizon triple should produce a
+  positive correction, a negative correction, or no correction.
+
+Updated decision:
+
+```text
+Treat the current decay kernel as a candidate selector, not as a residual
+predictor. The next low-cost step should model residual direction explicitly:
+1. estimate drop/rise/no-change labels from calibration residuals;
+2. train separate positive and negative residual heads;
+3. use a reliability gate learned from validation records;
+4. keep BiasOnly as a required sanity baseline.
+```
+
 ## References
 
 - TraffiDent: https://arxiv.org/abs/2407.11477
