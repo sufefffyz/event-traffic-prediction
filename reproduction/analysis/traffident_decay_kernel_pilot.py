@@ -444,6 +444,7 @@ def evaluate_county(
     pred: np.ndarray,
     target: np.ndarray,
     correction: np.ndarray,
+    bias_correction: np.ndarray,
     masks: Dict[str, np.ndarray],
     kernel_mask: np.ndarray,
     eval_rows: np.ndarray,
@@ -452,6 +453,7 @@ def evaluate_county(
     pred_eval = np.asarray(pred[eval_rows, :, :, 0], dtype=np.float32)
     target_eval = np.asarray(target[eval_rows, :, :, 0], dtype=np.float32)
     adj_eval = pred_eval + correction
+    bias_eval = pred_eval + bias_correction
     kernel_eval = kernel_mask[eval_rows]
     groups = {
         "all_eval": np.ones_like(kernel_eval, dtype=bool),
@@ -470,6 +472,7 @@ def evaluate_county(
     for group, group_mask in groups.items():
         stid_metrics = metric(pred_eval, target_eval, group_mask, null_val)
         adj_metrics = metric(adj_eval, target_eval, group_mask, null_val)
+        bias_metrics = metric(bias_eval, target_eval, group_mask, null_val)
         rows.append(
             {
                 "county": county,
@@ -477,14 +480,21 @@ def evaluate_county(
                 "node_windows": int(group_mask.sum()),
                 "STID_MAE": stid_metrics["MAE"],
                 "DecayKernel_MAE": adj_metrics["MAE"],
+                "BiasOnly_MAE": bias_metrics["MAE"],
                 "delta_vs_STID_MAE": adj_metrics["MAE"] - stid_metrics["MAE"],
+                "delta_biasonly_vs_STID_MAE": bias_metrics["MAE"] - stid_metrics["MAE"],
                 "STID_RMSE": stid_metrics["RMSE"],
                 "DecayKernel_RMSE": adj_metrics["RMSE"],
+                "BiasOnly_RMSE": bias_metrics["RMSE"],
                 "STID_bias": stid_metrics["bias"],
                 "DecayKernel_bias": adj_metrics["bias"],
+                "BiasOnly_bias": bias_metrics["bias"],
                 "DecayKernel_MAE@h3": adj_metrics.get("MAE@h3", np.nan),
                 "DecayKernel_MAE@h6": adj_metrics.get("MAE@h6", np.nan),
                 "DecayKernel_MAE@h12": adj_metrics.get("MAE@h12", np.nan),
+                "BiasOnly_MAE@h3": bias_metrics.get("MAE@h3", np.nan),
+                "BiasOnly_MAE@h6": bias_metrics.get("MAE@h6", np.nan),
+                "BiasOnly_MAE@h12": bias_metrics.get("MAE@h12", np.nan),
             }
         )
     return rows
@@ -499,6 +509,7 @@ def main() -> None:
     counties = list(args.counties)
 
     county_cache = {}
+    bias_by_county = {}
     all_x, all_y, all_w = [], [], []
     metadata = {
         "mode": "STID test_result calibration split; exploratory only",
@@ -546,6 +557,9 @@ def main() -> None:
             all_x.append(x)
             all_y.append(y)
             all_w.append(w)
+            bias_by_county[county] = float(np.average(y, weights=w))
+        else:
+            bias_by_county[county] = 0.0
         county_cache[county] = {
             "data": data,
             "index": index,
@@ -565,6 +579,7 @@ def main() -> None:
             "evaluation_rows": int(len(eval_rows)),
             "calibration_records": int(len(x)),
             "calibration_locations": int(len(locations)),
+            "bias_only_residual": float(bias_by_county[county]),
             "incident_records": int(len(incidents)),
         }
         print(f"[build] {county} calibration_records={len(x)}", flush=True)
@@ -601,18 +616,23 @@ def main() -> None:
             (len(eval_rows), args.output_len, cache["data"].shape[1]),
             dtype=np.float32,
         )
+        bias_correction = np.zeros_like(correction)
         row_to_eval = {int(row): idx for idx, row in enumerate(eval_rows)}
         if len(x_eval):
             pred_resid = x_eval @ coef
             pred_resid = np.clip(pred_resid, -args.clip_residual, args.clip_residual)
             for value, (row, node, horizon) in zip(pred_resid, locations):
                 correction[row_to_eval[int(row)], horizon, int(node)] = float(value)
+                bias_correction[row_to_eval[int(row)], horizon, int(node)] = float(
+                    bias_by_county[county]
+                )
         result_rows.extend(
             evaluate_county(
                 county=county,
                 pred=cache["pred"],
                 target=cache["target"],
                 correction=correction,
+                bias_correction=bias_correction,
                 masks=cache["masks"],
                 kernel_mask=kernel_mask_eval,
                 eval_rows=eval_rows,
@@ -632,6 +652,7 @@ def main() -> None:
     summary_rows = []
     for group, group_df in df.groupby("group"):
         deltas = group_df["delta_vs_STID_MAE"].dropna()
+        bias_deltas = group_df["delta_biasonly_vs_STID_MAE"].dropna()
         summary_rows.append(
             {
                 "group": group,
@@ -639,8 +660,13 @@ def main() -> None:
                 "total_node_windows": int(group_df["node_windows"].sum()),
                 "mean_delta_vs_STID_MAE": float(deltas.mean()) if len(deltas) else np.nan,
                 "wins_vs_STID": int((deltas < 0).sum()),
+                "mean_delta_biasonly_vs_STID_MAE": (
+                    float(bias_deltas.mean()) if len(bias_deltas) else np.nan
+                ),
+                "biasonly_wins_vs_STID": int((bias_deltas < 0).sum()),
                 "mean_STID_MAE": float(group_df["STID_MAE"].mean()),
                 "mean_DecayKernel_MAE": float(group_df["DecayKernel_MAE"].mean()),
+                "mean_BiasOnly_MAE": float(group_df["BiasOnly_MAE"].mean()),
             }
         )
     pd.DataFrame(summary_rows).sort_values("group").to_csv(summary_path, index=False)
