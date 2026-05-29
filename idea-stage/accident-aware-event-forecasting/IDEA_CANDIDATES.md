@@ -13,6 +13,7 @@
 - **V1 design record**: `V1_DIRECTIONAL_IMPACT_ROUTER.md` specifies a no-leakage directional impact router with a frozen STID base, local geometry mask, impact score, drop/rise/neutral residual heads, and event-aware losses.
 - **Post-hoc pilot**: NEGATIVE. `POSTHOC_RESIDUAL_PILOT.md` shows a weighted ridge residual on V1-style features worsens pure STID on post-last, ongoing, and high-impact windows. Do not proceed to full BasicTS V1 without revising the residual target/gate or producing proper train/val STID predictions.
 - **Oracle future pilot**: MOSTLY NEGATIVE. `ORACLE_FUTURE_ACCIDENT_ROUTER.md` shows that even directly feeding future accident labels does not beat pure `STID` overall except on Alameda and worsens `future_onset` on average. The remaining positive signal is narrower: `1141`, downstream, and high-impact `post_last_slot`.
+- **V2 method**: `V2_TRI_MODAL_INCIDENT_FIELD_ROUTER.md` reframes the router as a tri-modal incident impact field over incident-node-horizon triples. Accident type, spatial relation, and relative event time are encoded separately, then fused with a low-rank interaction before sparse residual routing.
 - **Estimated effort**: 2-6 weeks for a BasicTS prototype and first full run.
 - **Why selected first**: Best balance between feasibility, current evidence, and paper narrative.
 
