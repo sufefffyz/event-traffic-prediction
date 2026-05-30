@@ -140,6 +140,13 @@ Main idea:
 3. impose graph-TV / temporal-TV structure only after a residual proposal exists;
 4. keep `BiasOnly` as a mandatory sanity baseline.
 
+Follow-up matched-control audit by incident type shows that the risk signal is
+not uniform across event labels. `UnknInj` is the only type that consistently
+raises STID MAE and tail90 risk across future and post-event slices, while
+`1141` mostly shows a directional traffic/residual shift with lower MAE. This
+supports moving the next module toward type-conditioned risk or uncertainty
+forecasting instead of another global mean-residual correction.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |

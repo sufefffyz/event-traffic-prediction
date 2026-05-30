@@ -572,6 +572,67 @@ Next recommended direction:
 3. consider pivoting the main claim toward uncertainty / tail-risk under
    incidents if mean correction keeps collapsing to no-op.
 
+### 2026-05-30 Matched-Control Type-Sliced Audit
+
+Implementation:
+
+```text
+reproduction/analysis/traffident_matched_control_residual_audit.py
+```
+
+Server output:
+
+```text
+reproduction/analysis/traffident_matched_control_residual_audit_4county_by_type
+```
+
+This audit compares event windows against same-node, same-weekday,
+same-time-of-day no-event controls. Reported numbers are event minus matched
+control means, so positive `Delta MAE` means STID is worse under incidents, and
+positive `Delta tail90` means the sample is more likely to enter the no-event
+top-10% error tail.
+
+Future-event slices:
+
+| Type | Slice | Matched | Delta Traffic | Delta Residual | Delta MAE | Delta tail90 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `1141` | `future_any` | 1622 | -1.7492 | -1.6066 | -1.2012 | -0.0065 |
+| `1141` | `future_onset` | 1463 | -2.0186 | -1.6990 | -1.2631 | +0.0013 |
+| `NoInj` | `future_any` | 5969 | +1.3245 | +0.8916 | -0.1693 | -0.0018 |
+| `NoInj` | `future_onset` | 5361 | +1.3729 | +0.8851 | -0.1550 | -0.0006 |
+| `UnknInj` | `future_any` | 3654 | +0.3123 | -0.1972 | +0.7192 | +0.0240 |
+| `UnknInj` | `future_onset` | 3317 | +0.3731 | -0.1846 | +0.7067 | +0.0241 |
+
+History/ongoing slices:
+
+| Type | Slice | Matched | Delta Traffic | Delta Residual | Delta MAE | Delta tail90 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `1141` | `ongoing` | 159 | -0.0396 | -1.2029 | -1.0335 | -0.0738 |
+| `1141` | `post_last_slot` | 265 | -0.2734 | -1.1851 | -1.0354 | -0.0449 |
+| `NoInj` | `ongoing` | 608 | +0.9657 | +0.9829 | -0.2037 | -0.0094 |
+| `NoInj` | `post_last_slot` | 954 | +0.2967 | +0.2415 | -0.3032 | -0.0116 |
+| `UnknInj` | `ongoing` | 337 | -0.3259 | -0.4047 | +0.7972 | +0.0205 |
+| `UnknInj` | `post_last_slot` | 587 | -0.7550 | -0.7688 | +0.6587 | +0.0166 |
+
+Interpretation:
+
+- `UnknInj` is the clearest risk-positive incident type. It increases STID MAE
+  and tail90 risk across future and post-event slices.
+- `1141` has a strong directional traffic/residual shift, but STID MAE and
+  tail risk are mostly lower than controls. It should not be mixed with
+  `UnknInj` under a single accident embedding.
+- `NoInj` changes traffic and residual bias, but it does not consistently
+  increase prediction risk.
+
+Decision:
+
+```text
+Mean residual correction remains a weak target.
+The next model should be type-conditioned and risk/uncertainty-first, with
+UnknInj as the primary positive risk signal and 1141 as a separate directional
+shift class.
+```
+
 ## Sources
 
 - Residual Correction in Real-Time Traffic Forecasting, CIKM 2022:
