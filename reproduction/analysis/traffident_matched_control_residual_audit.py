@@ -67,6 +67,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--null-val", type=float, default=0.0)
     parser.add_argument("--steps-per-day", type=int, default=288)
     parser.add_argument("--start-weekday", type=int, default=6, help="2023-01-01 is Sunday=6")
+    parser.add_argument("--type-event-window-slots", type=int, default=2)
     return parser.parse_args()
 
 
@@ -81,6 +82,42 @@ def time_keys(mid_slots: np.ndarray, steps_per_day: int, start_weekday: int) -> 
     weekday = (start_weekday + day_idx) % 7
     tod = mid_slots % steps_per_day
     return weekday * steps_per_day + tod
+
+
+def slot_from_dt(series: pd.Series, start_time: str = "2023-01-01 00:00:00") -> np.ndarray:
+    start = pd.Timestamp(start_time)
+    dt = pd.to_datetime(series)
+    minutes = (dt - start).dt.total_seconds().to_numpy() / 60.0
+    return np.floor(minutes / 5.0).astype(int)
+
+
+def load_type_event_masks(
+    data_dir: Path,
+    num_steps: int,
+    num_nodes: int,
+    event_window_slots: int,
+) -> Dict[str, np.ndarray]:
+    incidents = pd.read_csv(data_dir / "matched_incidents.csv")
+    meta = pd.read_csv(data_dir / "sensor_meta_feature.csv")
+    local = meta[["global_index"]].copy()
+    local["node_idx"] = np.arange(len(local), dtype=np.int64)
+    incidents = incidents.merge(local, on="global_index", how="left")
+    incidents = incidents.dropna(subset=["node_idx", "dt", "Type"]).copy()
+    incidents["node_idx"] = incidents["node_idx"].astype(int)
+    incidents["event_slot"] = slot_from_dt(incidents["dt"])
+
+    masks: Dict[str, np.ndarray] = {}
+    for value, group in incidents.groupby(incidents["Type"].astype(str)):
+        mask = np.zeros((num_steps, num_nodes), dtype=bool)
+        for row in group.itertuples(index=False):
+            slot = int(row.event_slot)
+            node = int(row.node_idx)
+            if slot < 0 or slot >= num_steps or node < 0 or node >= num_nodes:
+                continue
+            mask[slot : min(num_steps, slot + event_window_slots), node] = True
+        if mask.any():
+            masks[str(value)] = mask
+    return masks
 
 
 def eval_scalar_metrics(
@@ -181,11 +218,13 @@ def add_group_values(
         acc[f"diff_{name}_neg_count"] += int((diff < 0).sum())
 
 
-def finalize(acc: Dict[str, float], county: str, group: str) -> Dict[str, object]:
+def finalize(acc: Dict[str, float], county: str, factor: str, value: str, group: str) -> Dict[str, object]:
     matched = int(acc["matched_count"])
     event_count = int(acc["event_count"])
     row: Dict[str, object] = {
         "county": county,
+        "factor": factor,
+        "value": value,
         "group": group,
         "event_count": event_count,
         "matched_count": matched,
@@ -214,8 +253,10 @@ def finalize(acc: Dict[str, float], county: str, group: str) -> Dict[str, object
 
 def summarize(rows: pd.DataFrame) -> pd.DataFrame:
     summary_rows = []
-    for group, group_df in rows.groupby("group"):
+    for (factor, value, group), group_df in rows.groupby(["factor", "value", "group"]):
         item = {
+            "factor": factor,
+            "value": value,
             "group": group,
             "counties": int(group_df["county"].nunique()),
             "matched_count": int(group_df["matched_count"].sum()),
@@ -227,7 +268,7 @@ def summarize(rows: pd.DataFrame) -> pd.DataFrame:
             "abs_error_positive_counties": int((group_df["diff_stid_abs_error_mean"] > 0).sum()),
         }
         summary_rows.append(item)
-    return pd.DataFrame(summary_rows).sort_values("group")
+    return pd.DataFrame(summary_rows).sort_values(["factor", "value", "group"])
 
 
 def main() -> None:
@@ -253,6 +294,12 @@ def main() -> None:
         masks_full = event_masks(event, index)
         masks = {name: masks_full[name][eval_rows] for name in GROUPS}
         no_event = masks_full["no_event"][eval_rows]
+        type_masks = load_type_event_masks(
+            data_dir=data_dir,
+            num_steps=data.shape[0],
+            num_nodes=data.shape[1],
+            event_window_slots=args.type_event_window_slots,
+        )
         keys = time_keys(index[eval_rows, 1], args.steps_per_day, args.start_weekday)
         num_keys = 7 * args.steps_per_day
         metrics = eval_scalar_metrics(data, index, pred, target, eval_rows, args.null_val)
@@ -267,12 +314,23 @@ def main() -> None:
         for group, mask in masks.items():
             acc = init_acc()
             add_group_values(acc, mask, metrics, control_count, control_sum, keys)
-            rows.append(finalize(acc, county, group))
+            rows.append(finalize(acc, county, "all", "all", group))
+        for type_value, type_event in sorted(type_masks.items()):
+            type_scope_masks = {
+                group: scope_mask[eval_rows]
+                for group, scope_mask in event_masks(type_event, index).items()
+                if group in GROUPS
+            }
+            for group, mask in type_scope_masks.items():
+                acc = init_acc()
+                add_group_values(acc, mask, metrics, control_count, control_sum, keys)
+                rows.append(finalize(acc, county, "type", type_value, group))
         metadata["counties"][county] = {
             "data_shape": list(data.shape),
             "test_index_shape": list(index.shape),
             "eval_rows": int(len(eval_rows)),
             "tail90_threshold": tail_threshold,
+            "type_values": sorted(type_masks),
             "result_dir": str(result_dir.relative_to(repo_root)),
         }
 
