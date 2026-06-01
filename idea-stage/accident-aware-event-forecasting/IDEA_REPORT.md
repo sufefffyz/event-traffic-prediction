@@ -159,6 +159,11 @@ event slices. V3 improves calibration on some slices but does not robustly
 improve ranking over `traffic_time`, so a full BasicTS V3 module is not yet
 justified.
 
+Incremental comparison confirms this: after conditioning on `traffic_time`, the
+only strict positive incident slice is `UnknInj/ongoing`. Future-event slices
+mainly gain calibration, not ranking. Incident labels are therefore better
+viewed as calibration modifiers unless event-node/time alignment is improved.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |

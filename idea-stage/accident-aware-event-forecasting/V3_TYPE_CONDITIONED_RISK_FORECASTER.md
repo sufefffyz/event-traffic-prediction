@@ -490,3 +490,66 @@ The next step should audit whether incident labels add incremental information
 after conditioning on traffic_time, or whether the project should focus on
 traffic-state risk calibration plus incident-conditioned analysis.
 ```
+
+## Incremental Incident Value Check
+
+After conditioning on the strong `traffic_time` baseline, compute:
+
+$$
+\Delta_{\mathrm{rank}}
+=
+\mathrm{Metric}
+\left(
+\mathrm{v3\_type\_risk}
+\right)
+-
+\mathrm{Metric}
+\left(
+\mathrm{traffic\_time}
+\right)
+$$
+
+where higher is better for AUROC, AUPRC, and top10 lift, while lower is better
+for Brier and ECE.
+
+Strict positive criterion:
+
+$$
+\Delta \mathrm{AUROC}>0,\quad
+\Delta \mathrm{AUPRC}>0,\quad
+\Delta \mathrm{top10\_lift}>0,\quad
+\Delta \mathrm{Brier}<0,\quad
+\Delta \mathrm{ECE}<0
+$$
+
+Only `UnknInj/ongoing` satisfies this criterion in both scopes:
+
+| Scope | Slice | Delta AUROC | Delta AUPRC | Delta top10 lift | Delta Brier | Delta ECE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `history_future` | `UnknInj/ongoing` | +0.0015 | +0.0056 | +0.0115 | -0.0356 | -0.0859 |
+| `history` | `UnknInj/ongoing` | +0.0042 | +0.0107 | +0.0343 | -0.0354 | -0.0897 |
+
+For future-event slices, V3 often improves calibration but not ranking:
+
+| Scope | Slice | Delta AUROC | Delta AUPRC | Delta top10 lift | Delta Brier | Delta ECE |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `history_future` | `future_any` | -0.0038 | -0.0038 | -0.0103 | -0.0462 | -0.1143 |
+| `history_future` | `UnknInj/future_any` | -0.0045 | -0.0086 | -0.0211 | -0.0398 | -0.1053 |
+| `history` | `future_any` | -0.0044 | -0.0084 | -0.0119 | -0.0027 | -0.0087 |
+| `history` | `UnknInj/future_any` | -0.0037 | -0.0080 | -0.0127 | -0.0018 | -0.0072 |
+
+Interpretation:
+
+```text
+Incident features add calibration value, but not stable ranking value, after
+traffic_time is known. The only robust incremental slice is UnknInj/ongoing.
+```
+
+This suggests the next useful target is not a general incident-aware risk
+forecaster. A sharper next step is either:
+
+1. model `UnknInj/ongoing` as a narrow case study;
+2. treat incident labels as calibration modifiers for a traffic-state risk
+   model;
+3. improve incident-node/time alignment before trying another forecasting
+   module.

@@ -663,6 +663,15 @@ Do not implement V3 in BasicTS yet.
 First audit incremental incident value after conditioning on traffic_time.
 ```
 
+Incremental check completed:
+
+```text
+Only UnknInj/ongoing is strictly positive after conditioning on traffic_time.
+Future-event slices improve Brier/ECE but lose AUROC/AUPRC/top10 lift versus
+traffic_time, so incident labels currently behave more like calibration
+modifiers than independent risk rankers.
+```
+
 ## Sources
 
 - Residual Correction in Real-Time Traffic Forecasting, CIKM 2022:
