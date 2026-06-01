@@ -633,6 +633,16 @@ UnknInj as the primary positive risk signal and 1141 as a separate directional
 shift class.
 ```
 
+Follow-up design:
+
+```text
+V3_TYPE_CONDITIONED_RISK_FORECASTER.md
+```
+
+This reframes the next model around \(P(E_{r,i}>q^{(c)}_{0.9})\) and optional
+uncertainty inflation while keeping the pure-STID mean forecast unchanged in
+the first version.
+
 ## Sources
 
 - Residual Correction in Real-Time Traffic Forecasting, CIKM 2022:

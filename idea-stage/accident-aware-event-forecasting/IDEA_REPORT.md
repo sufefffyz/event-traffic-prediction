@@ -147,6 +147,11 @@ raises STID MAE and tail90 risk across future and post-event slices, while
 supports moving the next module toward type-conditioned risk or uncertainty
 forecasting instead of another global mean-residual correction.
 
+The concrete V3 design is recorded in
+`V3_TYPE_CONDITIONED_RISK_FORECASTER.md`. The first version keeps the STID mean
+forecast unchanged and predicts tail90 risk / uncertainty inflation as an
+auxiliary output.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |
@@ -181,6 +186,7 @@ forecasting instead of another global mean-residual correction.
 | STID + gated accident residual router | done | MIXED: beats STIDAccident on all counties, but does not robustly beat pure STID; see `EVENT_METRIC_ANALYSIS.md` and `MODULE_ARCHITECTURE.md` |
 | STID + oracle future accident router | done | MOSTLY NEGATIVE: directly using future accident sequence still loses to pure STID on 3/4 counties overall and worsens `future_onset`; useful local signal appears mainly in `1141`, downstream, and high-impact `post_last_slot`; see `ORACLE_FUTURE_ACCIDENT_ROUTER.md` |
 | Tri-modal incident field router | design | NEW V2: factorize incident type, spatial relation, and relative event time as separate modalities over incident-node-horizon triples; see `V2_TRI_MODAL_INCIDENT_FIELD_ROUTER.md` |
+| Type-conditioned risk forecaster | design | NEW V3: use type-conditioned incident fields to predict tail90 risk / uncertainty while leaving the STID mean unchanged; see `V3_TYPE_CONDITIONED_RISK_FORECASTER.md` |
 | Counterfactual residual target construction | 2-4 天 | matched no-event baseline 能稳定解释 normal traffic，事故 residual 有非零结构 |
 
 ## Novelty Check Artifacts
@@ -194,6 +200,7 @@ forecasting instead of another global mean-residual correction.
 - `POSTHOC_RESIDUAL_PILOT.md`: first low-cost V1 residual pilot. It is negative, so the current residual target/gate should be revised before full BasicTS implementation.
 - `ORACLE_FUTURE_ACCIDENT_ROUTER.md`: aggressive future-event oracle. It is mostly negative, showing that future accident labels alone do not solve the problem under the current event-node mapping.
 - `V2_TRI_MODAL_INCIDENT_FIELD_ROUTER.md`: V2 method proposal grounded in TraffiDent/MM-DAG/IGSTGNN/EGAF-Net/DMGNN/STGNPP. It treats incident type, spatial distance, and temporal distance as separate modalities.
+- `V3_TYPE_CONDITIONED_RISK_FORECASTER.md`: V3 risk-first proposal motivated by type-sliced matched-control audit. It keeps pure-STID mean predictions and learns incident-conditioned tail90 risk / uncertainty.
 - `.aris/traces/novelty-check/2026-05-27_run01/trace.md`: ARIS trace record.
 
 ## Sources
