@@ -672,6 +672,46 @@ traffic_time, so incident labels currently behave more like calibration
 modifiers than independent risk rankers.
 ```
 
+### 2026-06-01 V4 Probabilistic Calibration Result
+
+Four-county STID-fixed Gaussian sigma pilots completed for two scopes:
+
+- `history_future`: oracle diagnostic with future incident fields;
+- `history`: deployable setting with only historical incident fields.
+
+The decisive comparison is `full_sigma` vs `traffic_time_sigma`.
+
+Key result:
+
+```text
+history_future is clearly positive on event slices, but it is an oracle.
+history is not positive for future_any/future_onset, but is positive for
+ongoing/post_last uncertainty calibration.
+```
+
+Representative deltas:
+
+| Scope | Slice | Delta NLL | Delta pinball | Delta cov80 err | Delta width80 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `history_future` | `future_any` | -0.0224 | -0.0660 | -0.0166 | -3.8346 |
+| `history_future` | `UnknInj/future_any` | -0.0298 | -0.0909 | -0.0236 | -5.3711 |
+| `history` | `future_any` | +0.0006 | +0.0051 | +0.0001 | +0.1923 |
+| `history` | `UnknInj/future_any` | +0.0007 | +0.0050 | -0.0002 | +0.1506 |
+| `history` | `ongoing` | -0.0066 | -0.0436 | -0.0135 | -2.7845 |
+| `history` | `UnknInj/ongoing` | -0.0114 | -0.0407 | -0.0156 | -3.2312 |
+| `history` | `post_last_slot` | -0.0059 | -0.0645 | -0.0192 | -4.1029 |
+
+Interpretation:
+
+```text
+事故标签目前不能证明能预测未来事故 onset 的分布不确定性；
+但在事故已经进入历史窗口或刚结束时，它能作为 uncertainty calibrator。
+```
+
+This is the first reasonably positive signal after the mean-residual pilots:
+the target should be probabilistic uncertainty / interval calibration, not mean
+residual correction.
+
 ## Sources
 
 - Residual Correction in Real-Time Traffic Forecasting, CIKM 2022:

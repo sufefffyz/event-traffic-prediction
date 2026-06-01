@@ -164,6 +164,15 @@ only strict positive incident slice is `UnknInj/ongoing`. Future-event slices
 mainly gain calibration, not ranking. Incident labels are therefore better
 viewed as calibration modifiers unless event-node/time alignment is improved.
 
+V4 probabilistic calibration gives the first more actionable positive signal.
+With pure STID mean fixed, `full_sigma` beats `traffic_time_sigma` in the
+`history_future` oracle setting on future-event slices, proving that accurate
+incident fields can be used by an uncertainty head. In the deployable `history`
+setting, the gain does not hold for `future_any/future_onset`; it concentrates
+on `ongoing` and `post_last_slot`, especially `UnknInj`. This supports an
+uncertainty-first claim for observed/ongoing incidents, not a broad claim that
+historical accident labels predict future incident onset.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |
@@ -199,6 +208,7 @@ viewed as calibration modifiers unless event-node/time alignment is improved.
 | STID + oracle future accident router | done | MOSTLY NEGATIVE: directly using future accident sequence still loses to pure STID on 3/4 counties overall and worsens `future_onset`; useful local signal appears mainly in `1141`, downstream, and high-impact `post_last_slot`; see `ORACLE_FUTURE_ACCIDENT_ROUTER.md` |
 | Tri-modal incident field router | design | NEW V2: factorize incident type, spatial relation, and relative event time as separate modalities over incident-node-horizon triples; see `V2_TRI_MODAL_INCIDENT_FIELD_ROUTER.md` |
 | Type-conditioned risk forecaster | done | MIXED/NEGATIVE V3: traffic/time features dominate tail90 risk; incident fields alone are weak; see `V3_TYPE_CONDITIONED_RISK_FORECASTER.md` |
+| STID-fixed probabilistic calibration | done | POSITIVE BUT NARROW V4: future incident fields help in oracle `history_future`; deployable `history` gains are concentrated in `ongoing/post_last`, especially `UnknInj`; see `V4_STID_FIXED_PROBABILISTIC_CALIBRATION.md` |
 | Counterfactual residual target construction | 2-4 天 | matched no-event baseline 能稳定解释 normal traffic，事故 residual 有非零结构 |
 
 ## Novelty Check Artifacts
@@ -213,6 +223,7 @@ viewed as calibration modifiers unless event-node/time alignment is improved.
 - `ORACLE_FUTURE_ACCIDENT_ROUTER.md`: aggressive future-event oracle. It is mostly negative, showing that future accident labels alone do not solve the problem under the current event-node mapping.
 - `V2_TRI_MODAL_INCIDENT_FIELD_ROUTER.md`: V2 method proposal grounded in TraffiDent/MM-DAG/IGSTGNN/EGAF-Net/DMGNN/STGNPP. It treats incident type, spatial distance, and temporal distance as separate modalities.
 - `V3_TYPE_CONDITIONED_RISK_FORECASTER.md`: V3 risk-first proposal motivated by type-sliced matched-control audit. It keeps pure-STID mean predictions and learns incident-conditioned tail90 risk / uncertainty.
+- `V4_STID_FIXED_PROBABILISTIC_CALIBRATION.md`: V4 probability-first pilot. It keeps the pure-STID mean fixed and tests whether accident fields improve heteroscedastic sigma / interval calibration beyond traffic-time features.
 - `.aris/traces/novelty-check/2026-05-27_run01/trace.md`: ARIS trace record.
 
 ## Sources

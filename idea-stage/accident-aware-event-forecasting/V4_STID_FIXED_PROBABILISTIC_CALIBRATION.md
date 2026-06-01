@@ -1,6 +1,6 @@
 # V4 STID-Fixed Probabilistic Calibration
 
-**Status**: protocol proposal, pilot script pending server run  
+**Status**: four-county post-hoc pilot completed  
 **Goal**: test whether incident information improves probabilistic forecasts
 when the STID mean forecast is fixed.  
 **Hard baseline**: pure `STID` mean + traffic/time uncertainty calibration.
@@ -273,3 +273,96 @@ reproduction/analysis/traffident_probabilistic_calibration_pilot.py
 It should use saved pure-STID predictions and targets, fit on the first half of
 the test result, and evaluate on the second half, matching the previous
 post-hoc pilots.
+
+## 2026-06-01 Pilot Result
+
+Server run:
+
+```text
+reproduction/analysis/traffident_probabilistic_calibration_4county_history_future_samedir
+reproduction/analysis/traffident_probabilistic_calibration_4county_history_samedir
+```
+
+Training records: 955,575 flattened residual records. Evaluation uses the
+second half of saved pure-STID test results.
+
+### Aggregate Delta
+
+The table reports:
+
+$$
+\Delta
+=
+\mathrm{Metric}(\mathrm{full\_sigma})
+-
+\mathrm{Metric}(\mathrm{traffic\_time\_sigma})
+$$
+
+Lower is better for all columns below. Negative width means the interval is
+sharper.
+
+| Scope | Slice | Records | Delta NLL | Delta pinball | Delta cov80 err | Delta width80 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `history_future` | `future_any` | 247954 | -0.0224 | -0.0660 | -0.0166 | -3.8346 |
+| `history_future` | `future_onset` | 222753 | -0.0229 | -0.0675 | -0.0165 | -3.8431 |
+| `history_future` | `ongoing` | 25201 | -0.0173 | -0.0525 | -0.0177 | -3.7598 |
+| `history_future` | `post_last_slot` | 39980 | -0.0181 | -0.0613 | -0.0158 | -3.6491 |
+| `history_future` | `UnknInj/future_any` | 91134 | -0.0298 | -0.0909 | -0.0236 | -5.3711 |
+| `history_future` | `UnknInj/ongoing` | 8226 | -0.0242 | -0.0765 | -0.0207 | -5.5360 |
+| `history` | `future_any` | 247954 | +0.0006 | +0.0051 | +0.0001 | +0.1923 |
+| `history` | `future_onset` | 222753 | +0.0014 | +0.0106 | +0.0017 | +0.5291 |
+| `history` | `ongoing` | 25201 | -0.0066 | -0.0436 | -0.0135 | -2.7845 |
+| `history` | `post_last_slot` | 39980 | -0.0059 | -0.0645 | -0.0192 | -4.1029 |
+| `history` | `UnknInj/future_any` | 91134 | +0.0007 | +0.0050 | -0.0002 | +0.1506 |
+| `history` | `UnknInj/ongoing` | 8226 | -0.0114 | -0.0407 | -0.0156 | -3.2312 |
+
+### Stability Check
+
+`history_future` is an oracle diagnostic because future incidents are provided
+to the calibrator. In this setting `full_sigma` improves event slices in
+aggregate and in most counties. This proves the sigma head can use accurate
+future incident fields when they are available.
+
+`history` is the deployable setting. Here the gain does not hold for
+`future_any` or `future_onset`; it is concentrated in windows where the
+incident is already observable from history:
+
+| Scope | Slice | Per-county pattern |
+| --- | --- | --- |
+| `history` | `future_any` | pinball is worse in 4/4 counties; NLL is mixed and near zero |
+| `history` | `UnknInj/future_any` | pinball is worse in 4/4 counties; NLL is mixed and near zero |
+| `history` | `ongoing` | pinball improves in 4/4 counties; NLL improves in 3/4 counties |
+| `history` | `post_last_slot` | pinball improves in 4/4 counties; NLL improves in 2/4 counties |
+| `history` | `UnknInj/ongoing` | pinball improves in 4/4 counties; NLL improves in 3/4 counties |
+| `history` | `UnknInj/post_last_slot` | pinball improves in 4/4 counties; NLL improves in 3/4 counties |
+
+### Interpretation
+
+```text
+事故信息在概率预测中有正信号，但不是广义 future-onset 预测信号。
+```
+
+Supported claim:
+
+```text
+Given a fixed STID mean, incident fields can improve uncertainty calibration
+for ongoing/post-incident windows, especially UnknInj, by shrinking intervals
+while improving pinball and coverage error.
+```
+
+Unsupported claim:
+
+```text
+Historical accident labels alone improve probabilistic prediction for future
+incident onset.
+```
+
+Next step:
+
+```text
+Treat incident labels as a deployable uncertainty calibrator for observed
+ongoing/post-event states, not as a future incident oracle. A full BasicTS
+module should target heteroscedastic sigma or quantile heads and report
+probabilistic metrics, while keeping pure STID mean MAE/RMSE as a hard
+non-regression check.
+```
