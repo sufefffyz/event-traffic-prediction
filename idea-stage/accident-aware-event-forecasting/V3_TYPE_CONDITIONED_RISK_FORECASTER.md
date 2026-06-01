@@ -408,3 +408,85 @@ The next low-cost experiment should be a post-hoc type-conditioned tail-risk
 pilot. If that pilot fails, the accident labels in the current benchmark are
 probably insufficient for a robust forecasting improvement claim, and the main
 paper direction should return to dataset analysis or stronger event alignment.
+
+## 2026-06-01 Four-County Post-Hoc Pilot
+
+Implementation:
+
+```text
+reproduction/analysis/traffident_type_risk_pilot.py
+```
+
+Server outputs:
+
+```text
+reproduction/analysis/traffident_type_risk_pilot_4county_history_future_samedir
+reproduction/analysis/traffident_type_risk_pilot_4county_history_samedir
+```
+
+Models compared:
+
+| Model | Features |
+| --- | --- |
+| `county_base` | county tail90 base rate |
+| `type_only` | county + incident type features |
+| `traffic_time` | history traffic statistics + time features |
+| `incident_field` | incident type / space / time kernel features |
+| `v3_type_risk` | traffic/time + incident field |
+
+Key result:
+
+```text
+The risk prediction signal is dominated by history traffic and time features.
+The incident field alone has little standalone ranking power.
+V3 mainly improves calibration / Brier score on some incident slices, but does
+not robustly improve AUROC/AUPRC over the traffic_time ablation.
+```
+
+History-future oracle scope:
+
+| Slice | Model | AUROC | AUPRC | Brier | ECE |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `future_any` | `traffic_time` | 0.9110 | 0.5588 | 0.1364 | 0.2119 |
+| `future_any` | `incident_field` | 0.5075 | 0.1292 | 0.1312 | 0.1356 |
+| `future_any` | `v3_type_risk` | 0.9072 | 0.5549 | 0.0902 | 0.0976 |
+| `UnknInj/future_any` | `traffic_time` | 0.9297 | 0.5856 | 0.1200 | 0.1964 |
+| `UnknInj/future_any` | `incident_field` | 0.4341 | 0.1027 | 0.1268 | 0.1373 |
+| `UnknInj/future_any` | `v3_type_risk` | 0.9252 | 0.5770 | 0.0802 | 0.0911 |
+
+History-only deployable scope:
+
+| Slice | Model | AUROC | AUPRC | Brier | ECE |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `future_any` | `traffic_time` | 0.9110 | 0.5588 | 0.1364 | 0.2119 |
+| `future_any` | `incident_field` | 0.4892 | 0.1287 | 0.2362 | 0.3471 |
+| `future_any` | `v3_type_risk` | 0.9066 | 0.5504 | 0.1337 | 0.2032 |
+| `UnknInj/future_any` | `traffic_time` | 0.9297 | 0.5856 | 0.1200 | 0.1964 |
+| `UnknInj/future_any` | `incident_field` | 0.4946 | 0.1223 | 0.2368 | 0.3574 |
+| `UnknInj/future_any` | `v3_type_risk` | 0.9260 | 0.5776 | 0.1182 | 0.1892 |
+| `UnknInj/ongoing` | `traffic_time` | 0.9357 | 0.6286 | 0.1068 | 0.1800 |
+| `UnknInj/ongoing` | `incident_field` | 0.4848 | 0.1823 | 0.1323 | 0.1266 |
+| `UnknInj/ongoing` | `v3_type_risk` | 0.9399 | 0.6393 | 0.0714 | 0.0903 |
+
+Interpretation:
+
+- `traffic_time` is a very strong risk predictor even on `no_event_sample`, so
+  much of tail90 risk is normal traffic difficulty rather than incident-specific
+  information.
+- `incident_field` does not yet carry enough independent signal. It is near
+  random or worse on most future slices.
+- `v3_type_risk` improves Brier / ECE in several event slices, especially under
+  oracle `history_future`, but its ranking metrics mostly track or trail
+  `traffic_time`.
+- The only deployable local positive signal is `UnknInj/ongoing`, where
+  `v3_type_risk` slightly improves AUROC/AUPRC and clearly improves calibration
+  versus `traffic_time`.
+
+Decision:
+
+```text
+Do not implement V3 as a BasicTS module yet.
+The next step should audit whether incident labels add incremental information
+after conditioning on traffic_time, or whether the project should focus on
+traffic-state risk calibration plus incident-conditioned analysis.
+```

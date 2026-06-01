@@ -152,6 +152,13 @@ The concrete V3 design is recorded in
 forecast unchanged and predicts tail90 risk / uncertainty inflation as an
 auxiliary output.
 
+Four-county V3 post-hoc pilots are now complete. They show that the tail-risk
+signal is dominated by historical traffic/time features: `traffic_time` is
+already strong, while `incident_field` alone is near random on most future
+event slices. V3 improves calibration on some slices but does not robustly
+improve ranking over `traffic_time`, so a full BasicTS V3 module is not yet
+justified.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |
@@ -186,7 +193,7 @@ auxiliary output.
 | STID + gated accident residual router | done | MIXED: beats STIDAccident on all counties, but does not robustly beat pure STID; see `EVENT_METRIC_ANALYSIS.md` and `MODULE_ARCHITECTURE.md` |
 | STID + oracle future accident router | done | MOSTLY NEGATIVE: directly using future accident sequence still loses to pure STID on 3/4 counties overall and worsens `future_onset`; useful local signal appears mainly in `1141`, downstream, and high-impact `post_last_slot`; see `ORACLE_FUTURE_ACCIDENT_ROUTER.md` |
 | Tri-modal incident field router | design | NEW V2: factorize incident type, spatial relation, and relative event time as separate modalities over incident-node-horizon triples; see `V2_TRI_MODAL_INCIDENT_FIELD_ROUTER.md` |
-| Type-conditioned risk forecaster | design | NEW V3: use type-conditioned incident fields to predict tail90 risk / uncertainty while leaving the STID mean unchanged; see `V3_TYPE_CONDITIONED_RISK_FORECASTER.md` |
+| Type-conditioned risk forecaster | done | MIXED/NEGATIVE V3: traffic/time features dominate tail90 risk; incident fields alone are weak; see `V3_TYPE_CONDITIONED_RISK_FORECASTER.md` |
 | Counterfactual residual target construction | 2-4 天 | matched no-event baseline 能稳定解释 normal traffic，事故 residual 有非零结构 |
 
 ## Novelty Check Artifacts

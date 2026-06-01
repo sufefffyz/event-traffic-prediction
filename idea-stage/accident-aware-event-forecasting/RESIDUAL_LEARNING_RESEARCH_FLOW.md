@@ -643,6 +643,26 @@ This reframes the next model around \(P(E_{r,i}>q^{(c)}_{0.9})\) and optional
 uncertainty inflation while keeping the pure-STID mean forecast unchanged in
 the first version.
 
+### 2026-06-01 V3 Risk Pilot Result
+
+Four-county `history_future` and `history` pilots completed. The result is
+mixed/negative for incident-specific modeling:
+
+- `traffic_time` is already a strong tail90 predictor on event and no-event
+  slices;
+- `incident_field` alone is close to random or worse on future-event slices;
+- `v3_type_risk` improves Brier/ECE on some slices but does not robustly improve
+  AUROC/AUPRC over `traffic_time`;
+- the clearest deployable local signal is `UnknInj/ongoing`, but this is not
+  enough to justify a full BasicTS module yet.
+
+Decision:
+
+```text
+Do not implement V3 in BasicTS yet.
+First audit incremental incident value after conditioning on traffic_time.
+```
+
 ## Sources
 
 - Residual Correction in Real-Time Traffic Forecasting, CIKM 2022:
