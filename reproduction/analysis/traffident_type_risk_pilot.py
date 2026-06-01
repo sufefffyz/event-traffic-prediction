@@ -417,6 +417,34 @@ def type_only_columns(names: List[str]) -> List[int]:
     return [names.index(name) for name in keep]
 
 
+def traffic_time_columns(names: List[str]) -> List[int]:
+    keep = ["bias"] + [name for name in names if name.startswith("county=")]
+    keep += [
+        "hist_last",
+        "hist_mean",
+        "hist_std",
+        "hist_trend",
+        "tod_sin",
+        "tod_cos",
+        "dow_sin",
+        "dow_cos",
+    ]
+    return [names.index(name) for name in keep]
+
+
+def incident_field_columns(names: List[str]) -> List[int]:
+    keep = ["bias"] + [name for name in names if name.startswith("county=")]
+    keep += [
+        "kernel_sum",
+        "kernel_sq_sum",
+        "kernel_max",
+    ]
+    keep += [name for name in names if name.startswith("type=")]
+    keep += [name for name in names if name.startswith("relation=")]
+    keep += [name for name in names if name.startswith("time=")]
+    return [names.index(name) for name in keep]
+
+
 def evaluate_group(
     county: str,
     factor: str,
@@ -568,9 +596,13 @@ def main() -> None:
 
     full_columns = np.arange(x_train.shape[1], dtype=np.int64)
     type_columns = np.asarray(type_only_columns(names), dtype=np.int64)
+    traffic_columns = np.asarray(traffic_time_columns(names), dtype=np.int64)
+    incident_columns = np.asarray(incident_field_columns(names), dtype=np.int64)
     models = {}
     for model_name, columns in {
         "type_only": type_columns,
+        "traffic_time": traffic_columns,
+        "incident_field": incident_columns,
         "v3_type_risk": full_columns,
     }.items():
         x_part = x_train[:, columns]
