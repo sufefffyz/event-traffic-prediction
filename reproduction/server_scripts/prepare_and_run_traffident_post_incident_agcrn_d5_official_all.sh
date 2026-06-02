@@ -8,18 +8,19 @@ GPU_ID=${GPU_ID:-1}
 EPOCHS=${TRAFFIDENT_NUM_EPOCHS:-100}
 DATASET_NAME=${TRAFFIDENT_DATA_NAME:-TraffiDent_D5_2023Q1_OfficialAll}
 OFFICIAL_ROOT=${OFFICIAL_ROOT:-/data/yuzhang_fei/TraffiDent/official}
-OFFICIAL_REPO="$OFFICIAL_ROOT/XTraffic"
+OFFICIAL_SCRIPT_DIR="$OFFICIAL_ROOT/XTraffic_process"
+OFFICIAL_MATCH_SCRIPT="$OFFICIAL_SCRIPT_DIR/traffic_incident_match.py"
 LOG_DIR="$REPO_ROOT/reproduction/logs"
-mkdir -p "$LOG_DIR" "$OFFICIAL_ROOT"
+mkdir -p "$LOG_DIR" "$OFFICIAL_SCRIPT_DIR"
 
 cd "$REPO_ROOT"
 eval "$("$CONDA_ROOT/bin/conda" shell.bash hook)"
 conda activate "$CONDA_ENV"
 
-if [ ! -f "$OFFICIAL_REPO/process/traffic_incident_match.py" ]; then
-  git clone --depth 1 https://github.com/XAITraffic/XTraffic.git "$OFFICIAL_REPO"
-else
-  git -C "$OFFICIAL_REPO" pull --ff-only
+if [ ! -f "$OFFICIAL_MATCH_SCRIPT" ]; then
+  curl -L --fail \
+    -o "$OFFICIAL_MATCH_SCRIPT" \
+    https://raw.githubusercontent.com/XAITraffic/XTraffic/main/process/traffic_incident_match.py
 fi
 
 gpu_free_ratio() {
@@ -32,7 +33,7 @@ python reproduction/TraffiDent/prepare_paper_area_basicts.py \
   --sensor-type all \
   --event-types all \
   --matching-mode official-script \
-  --official-match-script "$OFFICIAL_REPO/process/traffic_incident_match.py" \
+  --official-match-script "$OFFICIAL_MATCH_SCRIPT" \
   --match-scope subset \
   --months 1,2,3 \
   --split-ratio 0.6,0.2,0.2 \
