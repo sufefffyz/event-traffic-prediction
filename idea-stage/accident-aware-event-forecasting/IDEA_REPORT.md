@@ -173,15 +173,17 @@ on `ongoing` and `post_last_slot`, especially `UnknInj`. This supports an
 uncertainty-first claim for observed/ongoing incidents, not a broad claim that
 historical accident labels predict future incident onset.
 
-A strict TraffiDent post-incident forecasting reproduction has also been started
-from the paper protocol. The first quick baseline is AGCRN on the D5 2023Q1
-slice with 12/12 windows and `t=1,3,6` reporting. It does not yet reproduce a
-clearer post-incident error increase: Incident MAE is `8.6245/11.4535/11.3142`
-versus General MAE `10.5107/11.4204/12.2740`. The caveat is severe sample size:
-only `123` incident node-windows are selected by the current one-sensor,
-next-slot post-incident adapter. This shifts the immediate priority from adding
-new modules to verifying the official post-incident sample definition and the
-D5/Monterey/San Bernardino data-slice ambiguity.
+The TraffiDent post-incident forecasting reproduction has been corrected to use
+the released `XTraffic/process/traffic_incident_match.py` script and all
+incident classes on the D5 2023Q1 slice. The earlier AGCRN result with only
+three incident labels is now treated as a BasicTS adapter sanity run. Under the
+official-script/all-classes setting, AGCRN does show post-incident degradation:
+General MAE at `t=1/3/6` is `10.5067/11.4183/12.2723`, while Incident MAE is
+`11.6799/12.9978/15.4685` over `412` incident node-windows. RMSE shows the same
+direction. MAPE is lower on Incident windows, so the safe claim is specifically
+about absolute/squared error, not all metrics. This supports the paper-style
+post-incident difficulty claim qualitatively, but additional baselines or seeds
+are still needed before treating it as a stable reproduction.
 
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |

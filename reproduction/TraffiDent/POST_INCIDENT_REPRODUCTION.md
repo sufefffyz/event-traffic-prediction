@@ -146,3 +146,86 @@ The corrected rerun uses:
 
 This rerun is the first result that should be compared against the TraffiDent
 paper's post-incident forecasting claim.
+
+## Official-script all-classes AGCRN D5 result, 2026-06-03
+
+This run is the corrected D5 reproduction pass. It calls the released
+`XTraffic/process/traffic_incident_match.py` script directly and keeps all
+incident classes instead of the previous `NoInj/UnknInj/1141` subset.
+
+Artifacts:
+
+- Dataset:
+  `/data/yuzhang_fei/TraffiDent/basicts/TraffiDent_D5_2023Q1_OfficialAll`
+- Training log:
+  `reproduction/logs/traffident_post_incident_agcrn_d5_official_all_100ep_g1.log`
+- Checkpoint and saved predictions:
+  `BasicTS/checkpoints/AGCRN/TraffiDent_D5_2023Q1_OfficialAll_100_12_12_paper/25bc079971eee61f0d7a30429fe8e304`
+- Test result arrays:
+  `.../test_results/inputs.npy`, `targets.npy`, `predictions.npy`
+- Table CSV:
+  `reproduction/analysis/traffident_post_incident_table/TraffiDent_D5_2023Q1_OfficialAll/post_incident_forecasting_table.csv`
+
+Confirmed data settings:
+
+- dataset: `TraffiDent_D5_2023Q1_OfficialAll`
+- area: `District == 5`
+- node count: `565`
+- timesteps: `25920`
+- chronological split: train `15537`, validation `5179`, test `5180`
+- input/output length: `12/12`
+- features: `[flow, time_of_day, day_of_week, accident_binary]`
+- model input channels: `[flow, time_of_day, day_of_week]`, target: `flow`
+- official matching: same freeway, nearest `Abs PM`, maximum distance `0.5`
+- incident/event classes: all
+- matched incidents in this slice: `2168`
+- active event slots in the prepared data: `4317`
+
+Training used AGCRN for `100` epochs and selected
+`AGCRN_best_val_MAE.pt`. The best checkpoint corresponds to validation MAE
+`11.2509`; its general test metrics are:
+
+| Metric | Overall | t=1 | t=3 | t=6 |
+| --- | ---: | ---: | ---: | ---: |
+| MAE | 12.2715 | 10.5067 | 11.4183 | 12.2723 |
+| RMSE | 25.0407 | 20.6604 | 22.9491 | 24.9271 |
+| MAPE | 26.3073 | 23.1346 | 24.7009 | 26.4786 |
+
+Post-incident forecasting table:
+
+| Split | node windows | valid@t1 | MAE@t1 | RMSE@t1 | MAPE@t1 | valid@t3 | MAE@t3 | RMSE@t3 | MAPE@t3 | valid@t6 | MAE@t6 | RMSE@t6 | MAPE@t6 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| General | 2926700 | 2351935 | 10.5067 | 20.6604 | 23.1346 | 2351954 | 11.4183 | 22.9491 | 24.7009 | 2351968 | 12.2723 | 24.9271 | 26.4786 |
+| Incident | 412 | 339 | 11.6799 | 21.4950 | 16.1657 | 340 | 12.9978 | 24.4918 | 19.3682 | 337 | 15.4685 | 30.3015 | 16.7501 |
+| Incident - General | - | - | +1.1732 | +0.8345 | -6.9689 | - | +1.5795 | +2.5427 | -5.3327 | - | +3.1962 | +5.3745 | -9.7286 |
+
+Comparison with the earlier adapter sanity run:
+
+| Run | Matching/classes | Incident node windows | Incident MAE@t1 | Incident MAE@t3 | Incident MAE@t6 | Qualitative conclusion |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Adapter sanity | local matching, 3 classes | 123 | 8.6245 | 11.4535 | 11.3142 | does not show incident harder than general |
+| Official all-classes | official script, all classes | 412 | 11.6799 | 12.9978 | 15.4685 | incident MAE/RMSE are clearly higher than general |
+
+Interpretation:
+
+- Using the official matching script and all incident classes reverses the
+  earlier sanity-run conclusion. It qualitatively supports the paper-style
+  claim that post-incident windows are harder under MAE and RMSE.
+- The effect is strongest at `t=6`: Incident MAE is `+3.1962` and RMSE is
+  `+5.3745` above General.
+- MAPE does not support the same conclusion; Incident MAPE is lower than
+  General at all three horizons. This likely reflects denominator differences
+  in the incident subset and should be reported separately rather than averaged
+  into a single "harder" statement.
+- The incident sample is larger than the adapter run (`412` vs `123` node
+  windows), but still small relative to General. This is enough for a corrected
+  AGCRN sanity reproduction, not enough for a final paper-level claim without
+  running additional official baselines or seeds.
+
+Recommended next steps:
+
+1. Treat the old `TraffiDent_D5_2023Q1` result as deprecated adapter sanity
+   output.
+2. Use `TraffiDent_D5_2023Q1_OfficialAll` as the active D5 reproduction slice.
+3. Run one more Table 3 baseline or AGCRN multi-seed before making a stable
+   reproduction claim.
