@@ -205,11 +205,13 @@ def match_with_official_script(
         return official_style_match(incidents.iloc[0:0], candidate_meta, distance_threshold)
 
     official["station_id"] = official["station_id"].astype(str)
+    official["incident_id"] = official["incident_id"].astype(str)
     meta_cols = ["station_id", "global_index", "Abs PM", "County", "Type", "Fwy"]
     incident_cols = ["incident_id", "Abs PM", "dt", "Type", "Fwy"]
     meta = candidate_meta[meta_cols].copy()
     meta["station_id"] = meta["station_id"].astype(str)
     inc = incidents[incident_cols].copy()
+    inc["incident_id"] = inc["incident_id"].astype(str)
 
     matched = official.merge(meta, on="station_id", how="left", suffixes=("", "_sensor_meta"))
     matched = matched.merge(inc, on="incident_id", how="left", suffixes=("", "_incident_meta"))
