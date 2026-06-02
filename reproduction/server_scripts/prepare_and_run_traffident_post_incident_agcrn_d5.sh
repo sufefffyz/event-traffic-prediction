@@ -40,9 +40,9 @@ export TRAFFIDENT_NUM_EPOCHS="$EPOCHS"
 export TRAFFIDENT_SEED="${TRAFFIDENT_SEED:-2023}"
 export TRAFFIDENT_BASICTS_ROOT=/data/yuzhang_fei/TraffiDent/basicts
 
-CUDA_VISIBLE_DEVICES="$GPU_ID" python BasicTS/experiments/train.py \
+python BasicTS/experiments/train.py \
   -c baselines/AGCRN/TraffiDent_D5.py \
-  -g 0 \
+  -g "$GPU_ID" \
   2>&1 | tee "$LOG_DIR/traffident_post_incident_agcrn_d5_${EPOCHS}ep_g${GPU_ID}.log"
 
 python reproduction/analysis/traffident_post_incident_forecasting_table.py \
