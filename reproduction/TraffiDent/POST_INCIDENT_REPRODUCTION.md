@@ -58,6 +58,12 @@ Expected outputs:
 
 ## AGCRN D5 result, 2026-06-02
 
+Important correction: this run should be treated as a BasicTS adapter sanity
+run, not an exact official-script reproduction. The data preparation used
+`--sensor-type all`, `--event-types accident`, and a local reimplementation of
+the matching rule. The follow-up official-script rerun keeps all incident types
+and calls `XTraffic/process/traffic_incident_match.py` directly.
+
 This run completed on the server after fixing the GPU mapping in
 `reproduction/server_scripts/prepare_and_run_traffident_post_incident_agcrn_d5.sh`.
 The effective command was:
@@ -120,3 +126,23 @@ Recommended next steps:
 3. If the sample definition is confirmed, run one more quick Table 3 baseline
    or one additional seed to check whether this AGCRN result is model/seed
    specific.
+
+## Official-script D5 rerun plan
+
+The corrected rerun uses:
+
+- matching script: official `XTraffic/process/traffic_incident_match.py`
+- command wrapper:
+  `reproduction/server_scripts/prepare_and_run_traffident_post_incident_agcrn_d5_official_all.sh`
+- dataset name: `TraffiDent_D5_2023Q1_OfficialAll`
+- area: `District == 5`
+- sensor type: `all`, because the paper's D5 wording does not unambiguously
+  give a mainline-only node list
+- incident/event classes: all official incident classes, no `NoInj/UnknInj/1141`
+  prefilter
+- matching scope: selected D5 sensors, then official nearest-Abs-PM script
+- output table:
+  `reproduction/analysis/traffident_post_incident_table/TraffiDent_D5_2023Q1_OfficialAll/post_incident_forecasting_table.csv`
+
+This rerun is the first result that should be compared against the TraffiDent
+paper's post-incident forecasting claim.

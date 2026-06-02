@@ -14,7 +14,7 @@ from basicts.scaler.indexed_npz_scaler import IndexedNPZStandardScaler
 from .arch import AGCRN
 
 
-DATA_NAME = "TraffiDent_D5_2023Q1"
+DATA_NAME = os.environ.get("TRAFFIDENT_DATA_NAME", "TraffiDent_D5_2023Q1")
 DATA_ROOT = os.environ.get("TRAFFIDENT_BASICTS_ROOT", "/data/yuzhang_fei/TraffiDent/basicts")
 DATA_FILE_PATH = os.path.join(DATA_ROOT, DATA_NAME, "data.npz")
 INDEX_FILE_PATH = os.path.join(DATA_ROOT, DATA_NAME, "index.npz")
@@ -25,7 +25,7 @@ TRAIN_VAL_TEST_RATIO = [0.6, 0.2, 0.2]
 NULL_VAL = 0.0
 NUM_EPOCHS = int(os.environ.get("TRAFFIDENT_NUM_EPOCHS", "100"))
 SEED = int(os.environ.get("TRAFFIDENT_SEED", "2023"))
-NUM_NODES = 565
+NUM_NODES = int(os.environ.get("TRAFFIDENT_NUM_NODES", "565"))
 
 
 CFG = EasyDict()

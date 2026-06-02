@@ -13,6 +13,9 @@ from __future__ import annotations
 import argparse
 import json
 import pickle
+import subprocess
+import sys
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Sequence
@@ -76,7 +79,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split-ratio", default="0.6,0.2,0.2")
     parser.add_argument("--distance-threshold", type=float, default=0.5)
     parser.add_argument("--event-window-slots", type=int, default=2)
-    parser.add_argument("--event-types", default="accident", choices=["accident", "all"])
+    parser.add_argument("--event-types", default="all", choices=["accident", "all"])
+    parser.add_argument(
+        "--matching-mode",
+        default="official-script",
+        choices=["official-script", "adapter"],
+        help="Use the official XTraffic matching script, or the local adapter reimplementation.",
+    )
+    parser.add_argument(
+        "--official-match-script",
+        type=Path,
+        default=Path("/data/yuzhang_fei/TraffiDent/official/XTraffic/process/traffic_incident_match.py"),
+        help="Path to XTraffic/process/traffic_incident_match.py.",
+    )
+    parser.add_argument(
+        "--dataset-name",
+        default=None,
+        help="Optional explicit output dataset name. Useful to keep official-script reruns separate.",
+    )
     parser.add_argument(
         "--match-scope",
         default="subset",
@@ -139,6 +159,78 @@ def maybe_write_graph_sidecars(
     summary["graph_sidecars"] = sidecars
 
 
+def match_with_official_script(
+    incidents: pd.DataFrame,
+    candidate_meta: pd.DataFrame,
+    distance_threshold: float,
+    script_path: Path,
+) -> pd.DataFrame:
+    """Run the official XTraffic process/traffic_incident_match.py script.
+
+    The official script reads sensor_meta_feature.csv from its working
+    directory and writes match_incidents.csv. We prepare those files in a
+    temporary directory, then enrich the official output with the metadata
+    columns needed by the BasicTS adapter.
+    """
+    if not script_path.exists():
+        raise FileNotFoundError(f"Official matching script not found: {script_path}")
+
+    with tempfile.TemporaryDirectory(prefix="xtraffic_match_") as tmp:
+        work_dir = Path(tmp)
+        (work_dir / "data").mkdir(parents=True, exist_ok=True)
+
+        meta_for_script = candidate_meta.dropna(subset=["Fwy", "Abs PM"]).copy()
+        meta_for_script.to_csv(work_dir / "sensor_meta_feature.csv", index=False)
+        incidents.to_csv(work_dir / "data" / "incident_y2023.csv", sep="\t", index=False)
+
+        subprocess.run(
+            [
+                sys.executable,
+                str(script_path),
+                "--dis_threshold",
+                str(distance_threshold),
+                "--incident_path",
+                "data/incident_y2023.csv",
+            ],
+            cwd=work_dir,
+            check=True,
+        )
+
+        matched_path = work_dir / "match_incidents.csv"
+        if not matched_path.exists():
+            raise FileNotFoundError(f"Official script did not write {matched_path}")
+        official = pd.read_csv(matched_path)
+
+    if official.empty:
+        return official_style_match(incidents.iloc[0:0], candidate_meta, distance_threshold)
+
+    official["station_id"] = official["station_id"].astype(str)
+    meta_cols = ["station_id", "global_index", "Abs PM", "County", "Type", "Fwy"]
+    incident_cols = ["incident_id", "Abs PM", "dt", "Type", "Fwy"]
+    meta = candidate_meta[meta_cols].copy()
+    meta["station_id"] = meta["station_id"].astype(str)
+    inc = incidents[incident_cols].copy()
+
+    matched = official.merge(meta, on="station_id", how="left", suffixes=("", "_sensor_meta"))
+    matched = matched.merge(inc, on="incident_id", how="left", suffixes=("", "_incident_meta"))
+
+    return pd.DataFrame(
+        {
+            "incident_id": matched["incident_id"],
+            "station_id": matched["station_id"],
+            "global_index": matched["global_index"].astype(int),
+            "dt": pd.to_datetime(matched["dt_incident_meta"], errors="coerce"),
+            "Type": matched["Type_incident_meta"],
+            "Fwy": matched["Fwy_incident_meta"].astype(int),
+            "sensor_abs_pm": pd.to_numeric(matched["Abs PM"], errors="coerce"),
+            "incident_abs_pm": pd.to_numeric(matched["Abs PM_incident_meta"], errors="coerce"),
+            "distance": pd.to_numeric(matched["dis"], errors="coerce"),
+            "County": matched["County"],
+            "sensor_type": matched["Type"],
+        }
+    )
+
+
 def prepare_area(
     zf: zipfile.ZipFile,
     meta: pd.DataFrame,
@@ -154,7 +246,7 @@ def prepare_area(
     if selected.empty:
         raise ValueError(f"No sensors for area={args.area}, sensor_type={args.sensor_type}")
 
-    name = dataset_name(args.area, args.year, months, args.sensor_type)
+    name = args.dataset_name or dataset_name(args.area, args.year, months, args.sensor_type)
     out_dir = args.output_root / name
     if not args.overwrite and (out_dir / "data.npz").exists() and (out_dir / "index.npz").exists():
         print(f"[skip] {name} already exists. Use --overwrite to rewrite.", flush=True)
@@ -170,7 +262,15 @@ def prepare_area(
         (incidents["dt"] >= times[0]) & (incidents["dt"] < times[-1] + pd.Timedelta(minutes=5))
     ].copy()
     candidate_meta = selected if args.match_scope == "subset" else meta
-    matched = official_style_match(active_incidents, candidate_meta, args.distance_threshold)
+    if args.matching_mode == "official-script":
+        matched = match_with_official_script(
+            active_incidents,
+            candidate_meta,
+            args.distance_threshold,
+            args.official_match_script,
+        )
+    else:
+        matched = official_style_match(active_incidents, candidate_meta, args.distance_threshold)
     selected_indices = set(selected["global_index"].astype(int))
     matched = matched[matched["global_index"].astype(int).isin(selected_indices)].copy()
 
@@ -215,10 +315,15 @@ def prepare_area(
         "split_ratio": list(split_ratio),
         "split_sizes": {key: int(len(value)) for key, value in index.items()},
         "official_matching": {
-            "source": "XTraffic/process/traffic_incident_match.py",
+            "source": (
+                str(args.official_match_script)
+                if args.matching_mode == "official-script"
+                else "local official_style_match adapter"
+            ),
             "rule": "same Fwy, nearest Abs PM within distance threshold",
             "distance_threshold": args.distance_threshold,
             "match_scope": args.match_scope,
+            "matching_mode": args.matching_mode,
         },
         "adapter_choices": {
             "event_types": args.event_types,
