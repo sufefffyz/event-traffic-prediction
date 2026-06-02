@@ -173,6 +173,16 @@ on `ongoing` and `post_last_slot`, especially `UnknInj`. This supports an
 uncertainty-first claim for observed/ongoing incidents, not a broad claim that
 historical accident labels predict future incident onset.
 
+A strict TraffiDent post-incident forecasting reproduction has also been started
+from the paper protocol. The first quick baseline is AGCRN on the D5 2023Q1
+slice with 12/12 windows and `t=1,3,6` reporting. It does not yet reproduce a
+clearer post-incident error increase: Incident MAE is `8.6245/11.4535/11.3142`
+versus General MAE `10.5107/11.4204/12.2740`. The caveat is severe sample size:
+only `123` incident node-windows are selected by the current one-sensor,
+next-slot post-incident adapter. This shifts the immediate priority from adding
+new modules to verifying the official post-incident sample definition and the
+D5/Monterey/San Bernardino data-slice ambiguity.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |

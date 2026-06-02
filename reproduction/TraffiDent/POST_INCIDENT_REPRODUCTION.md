@@ -55,3 +55,68 @@ Expected outputs:
 - Training log: `reproduction/logs/traffident_post_incident_agcrn_d5_100ep_g1.log`
 - Table CSV: `reproduction/analysis/traffident_post_incident_table/TraffiDent_D5_2023Q1/post_incident_forecasting_table.csv`
 - Case CSV: `reproduction/analysis/traffident_post_incident_table/TraffiDent_D5_2023Q1/post_incident_cases.csv`
+
+## AGCRN D5 result, 2026-06-02
+
+This run completed on the server after fixing the GPU mapping in
+`reproduction/server_scripts/prepare_and_run_traffident_post_incident_agcrn_d5.sh`.
+The effective command was:
+
+```bash
+python BasicTS/experiments/train.py -c baselines/AGCRN/TraffiDent_D5.py -g 1
+```
+
+Artifacts:
+
+- Training log:
+  `reproduction/logs/traffident_post_incident_agcrn_d5_100ep_g1_fixed_20260602.log`
+- Test results:
+  `BasicTS/checkpoints/AGCRN/TraffiDent_D5_2023Q1_100_12_12_paper/5c041ba989f9f9e4aa501e34c882a39f/test_results`
+- Table CSV:
+  `reproduction/analysis/traffident_post_incident_table/TraffiDent_D5_2023Q1/post_incident_forecasting_table.csv`
+
+Confirmed settings:
+
+- dataset: `TraffiDent_D5_2023Q1`
+- node count: `565`
+- timesteps: `25920`
+- chronological split: train `15537`, validation `5179`, test `5180`
+- input/output length: `12/12`
+- model input channels: `[flow, time_of_day, day_of_week]`
+- target channel: `flow`
+- scaler: global train-window z-score via `IndexedNPZStandardScaler`
+- missing traffic values: interpolated, `nan_before=2827720`, `nan_after=0`
+- incident matching: same freeway, nearest `Abs PM`, maximum distance `0.5`
+- matched incident labels: `NoInj`, `UnknInj`, `1141`
+- matched incidents in this slice: `613`
+- active event slots in the prepared data: `1218`
+
+The best-validation checkpoint gives:
+
+| Split | node windows | valid@t1 | MAE@t1 | RMSE@t1 | MAPE@t1 | valid@t3 | MAE@t3 | RMSE@t3 | MAPE@t3 | valid@t6 | MAE@t6 | RMSE@t6 | MAPE@t6 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| General | 2926700 | 2351935 | 10.5107 | 20.6547 | 23.1438 | 2351954 | 11.4204 | 22.9364 | 24.6104 | 2351968 | 12.2740 | 24.9094 | 26.4230 |
+| Incident | 123 | 97 | 8.6245 | 13.8256 | 17.3443 | 97 | 11.4535 | 19.3297 | 20.0653 | 95 | 11.3142 | 23.8639 | 10.5446 |
+
+Interpretation:
+
+- This run does not reproduce a strong "incident windows are harder than
+  general windows" conclusion. Incident MAE is lower than General at `t=1` and
+  `t=6`, and roughly equal at `t=3`.
+- The incident sample is very small: only `123` node-windows, with
+  `95-97` valid labels at the reported horizons. This is too narrow for a
+  strong negative or positive conclusion.
+- The most likely next check is the sample-definition gap: the current adapter
+  uses one matched sensor and the next post-incident slot. The paper may have
+  used a broader affected window, a different county/district slice, mainline
+  filtering, or multiple nearby sensors.
+
+Recommended next steps:
+
+1. Reconcile the D5 / Monterey / San Bernardino ambiguity before expanding the
+   claim.
+2. Audit the post-incident sample construction against the released TraffiDent
+   code and appendix wording.
+3. If the sample definition is confirmed, run one more quick Table 3 baseline
+   or one additional seed to check whether this AGCRN result is model/seed
+   specific.
