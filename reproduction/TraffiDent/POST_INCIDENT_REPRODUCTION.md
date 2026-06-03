@@ -227,5 +227,97 @@ Recommended next steps:
 1. Treat the old `TraffiDent_D5_2023Q1` result as deprecated adapter sanity
    output.
 2. Use `TraffiDent_D5_2023Q1_OfficialAll` as the active D5 reproduction slice.
-3. Run one more Table 3 baseline or AGCRN multi-seed before making a stable
-   reproduction claim.
+3. Compare against the GraphWaveNet Table 3 baseline below; if a final
+   reproduction claim is needed, still add more seeds or another official
+   baseline because both AGCRN and GraphWaveNet are currently single-seed runs.
+
+## Official-script all-classes GraphWaveNet D5 result, 2026-06-04
+
+This run adds a second Table 3 baseline on the same corrected D5 all-classes
+data slice. It uses the same official matched incidents and the same
+post-incident table script as the AGCRN run above.
+
+Important caveat: the data protocol is official-script aligned, but the
+GraphWaveNet hyperparameters are a BasicTS baseline adaptation rather than a
+TraffiDent-released model-specific configuration.
+
+Artifacts:
+
+- Training log:
+  `reproduction/logs/traffident_post_incident_gwnet_d5_official_all_100ep_g1.log`
+- Checkpoint and saved predictions:
+  `BasicTS/checkpoints/GraphWaveNet/TraffiDent_D5_2023Q1_OfficialAll_100_12_12_paper/49d2821e877d6d7ccf8d4e8a4844bd0f`
+- Test result arrays:
+  `.../test_results/inputs.npy`, `targets.npy`, `predictions.npy`
+- Test metrics:
+  `.../test_metrics.json`
+- Table CSV:
+  `reproduction/analysis/traffident_post_incident_table/TraffiDent_D5_2023Q1_OfficialAll/post_incident_forecasting_table.csv`
+
+Confirmed shared settings:
+
+- dataset: `TraffiDent_D5_2023Q1_OfficialAll`
+- area: `District == 5`
+- node count: `565`
+- timesteps: `25920`
+- chronological split: train `15537`, validation `5179`, test `5180`
+- input/output length: `12/12`
+- model input channels: `[flow, time_of_day, day_of_week]`, target: `flow`
+- official matching: same freeway, nearest `Abs PM`, maximum distance `0.5`
+- incident/event classes: all
+- matched incidents in this slice: `2168`
+- active event slots in the prepared data: `4317`
+
+Training used GraphWaveNet for `100` epochs and selected
+`GraphWaveNet_best_val_MAE.pt`. The best checkpoint corresponds to validation
+MAE `10.9420`; its general test metrics are:
+
+| Metric | Overall | t=1 | t=3 | t=6 |
+| --- | ---: | ---: | ---: | ---: |
+| MAE | 11.4722 | 9.6319 | 10.5636 | 11.4898 |
+| RMSE | 22.3057 | 18.0851 | 20.2424 | 22.2644 |
+| MAPE | 23.1600 | 20.8107 | 21.4131 | 23.0953 |
+
+Post-incident forecasting table:
+
+| Model | Split | node windows | valid@t1 | MAE@t1 | RMSE@t1 | MAPE@t1 | valid@t3 | MAE@t3 | RMSE@t3 | MAPE@t3 | valid@t6 | MAE@t6 | RMSE@t6 | MAPE@t6 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| AGCRN | General | 2926700 | 2351935 | 10.5067 | 20.6604 | 23.1346 | 2351954 | 11.4183 | 22.9491 | 24.7009 | 2351968 | 12.2723 | 24.9271 | 26.4786 |
+| AGCRN | Incident | 412 | 339 | 11.6799 | 21.4950 | 16.1657 | 340 | 12.9978 | 24.4918 | 19.3682 | 337 | 15.4685 | 30.3015 | 16.7501 |
+| GraphWaveNet | General | 2926700 | 2351935 | 9.6319 | 18.0851 | 20.8107 | 2351954 | 10.5636 | 20.2424 | 21.4131 | 2351968 | 11.4898 | 22.2644 | 23.0953 |
+| GraphWaveNet | Incident | 412 | 339 | 10.2010 | 17.4128 | 15.9875 | 340 | 11.5545 | 19.6144 | 17.7929 | 337 | 12.9421 | 24.2157 | 13.6851 |
+
+GraphWaveNet incident-minus-general deltas:
+
+| Horizon | Delta MAE | Delta RMSE | Delta MAPE |
+| --- | ---: | ---: | ---: |
+| t=1 | +0.5690 | -0.6723 | -4.8233 |
+| t=3 | +0.9909 | -0.6280 | -3.6202 |
+| t=6 | +1.4523 | +1.9512 | -9.4102 |
+
+AGCRN vs GraphWaveNet:
+
+| Split | Horizon | MAE gain of GraphWaveNet over AGCRN |
+| --- | --- | ---: |
+| General | t=1 | -0.8748 |
+| General | t=3 | -0.8547 |
+| General | t=6 | -0.7825 |
+| Incident | t=1 | -1.4789 |
+| Incident | t=3 | -1.4433 |
+| Incident | t=6 | -2.5264 |
+
+Interpretation:
+
+- GraphWaveNet is stronger than AGCRN on both General and Incident MAE for all
+  three reported horizons.
+- The paper-style post-incident difficulty claim still holds for MAE under
+  GraphWaveNet: Incident MAE is higher than General at `t=1/3/6`.
+- The degradation is most consistent for MAE and strongest at `t=6`. RMSE only
+  becomes worse at `t=6`; at `t=1/3`, GraphWaveNet Incident RMSE is slightly
+  below General RMSE.
+- MAPE again moves in the opposite direction, so the safe statement remains:
+  post-incident windows are harder in absolute error, not uniformly harder
+  across all metrics.
+- Because both baselines share the same `412` incident node-windows and both
+  show Incident MAE > General MAE, the official-script/all-classes D5 result is
+  more stable than the earlier adapter sanity run. It is still single-seed.

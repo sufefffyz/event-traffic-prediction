@@ -185,6 +185,16 @@ about absolute/squared error, not all metrics. This supports the paper-style
 post-incident difficulty claim qualitatively, but additional baselines or seeds
 are still needed before treating it as a stable reproduction.
 
+A second Table 3 baseline, GraphWaveNet, has now been run on the same
+official-script/all-classes D5 slice. It improves over AGCRN on both General
+and Incident MAE, but preserves the key qualitative pattern: General MAE at
+`t=1/3/6` is `9.6319/10.5636/11.4898`, while Incident MAE is
+`10.2010/11.5545/12.9421` over the same `412` incident node-windows. This makes
+the post-incident MAE degradation more credible than the AGCRN-only check, while
+still not enough for a final reproduction claim because both runs are single
+seed and GraphWaveNet uses a BasicTS baseline adaptation rather than a
+TraffiDent-specific released hyperparameter setting.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |
