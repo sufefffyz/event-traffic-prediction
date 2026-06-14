@@ -195,6 +195,16 @@ still not enough for a final reproduction claim because both runs are single
 seed and GraphWaveNet uses a BasicTS baseline adaptation rather than a
 TraffiDent-specific released hyperparameter setting.
 
+The D5 window distribution audit is recorded in
+`DISTRIBUTION_AND_CAUSAL_FORECASTING_NOTES.md`. On 12-history + 12-future
+node-windows, accident-containing samples differ from no-event samples mainly in
+state level rather than transition: `event_any` has higher full-window flow
+(`SMD=0.161`) and occupancy (`SMD=0.182`), while
+`future_minus_history_*` metrics are near zero. This suggests the accident
+signal is real but confounded with traffic state selection. The next method
+should favor uncertainty/risk calibration plus propensity-balanced analysis
+over direct mean-residual correction.
+
 | Rank | Idea | Contribution Type | Novelty | Feasibility | Risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Sparse Accident Residual Router | accident-specific residual routing | 6.5 | High | Med-Low | 最适合作为主模型骨架 |
