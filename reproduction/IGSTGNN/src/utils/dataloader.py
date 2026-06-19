@@ -1,277 +1,265 @@
+import csv
 import os
 import pickle
-import torch
+
 import numpy as np
-import threading
-import multiprocessing as mp
-import gc
-import json
-from tqdm import tqdm
+import torch
 
-class DataLoader(object):
-    def __init__(self, data, idx, seq_len, horizon, bs, logger, pad_last_sample=False):
-        if pad_last_sample:
-            num_padding = (bs - (len(idx) % bs)) % bs
-            idx_padding = np.repeat(idx[-1:], num_padding, axis=0)
-            idx = np.concatenate([idx, idx_padding], axis=0)
-        
-        self.data = data
-        self.idx = idx
-        self.size = len(idx)
-        self.bs = bs
-        self.num_batch = int(self.size // self.bs)
-        self.current_ind = 0
-        logger.info(f'Samples: {self.size}, Batches: {self.num_batch}')
-        
-        self.x_offsets = np.arange(-(seq_len - 1), 1, 1)
-        self.y_offsets = np.arange(1, (horizon + 1), 1)
-        self.seq_len = seq_len
-        self.horizon = horizon
-
-
-    def shuffle(self):
-        perm = np.random.permutation(self.size)
-        idx = self.idx[perm]
-        self.idx = idx
-
-
-    def write_to_shared_array(self, x, y, idx_ind, start_idx, end_idx):
-        for i in range(start_idx, end_idx):
-            x[i] = self.data[idx_ind[i] + self.x_offsets, :, :]
-            if self.data.shape[-1] == 5:
-                y[i] = self.data[idx_ind[i] + self.y_offsets, :, :3]
-            else:
-                y[i] = self.data[idx_ind[i] + self.y_offsets, :, :1]
-
-    def get_iterator(self):
-        self.current_ind = 0
-
-        def _wrapper():
-            while self.current_ind < self.num_batch:
-                start_ind = self.bs * self.current_ind
-                end_ind = min(self.size, self.bs * (self.current_ind + 1))
-                idx_ind = self.idx[start_ind: end_ind, ...]
-
-                x_shape = (len(idx_ind), self.seq_len, self.data.shape[1], self.data.shape[-1])
-                try:
-                    x_shared = mp.RawArray('f', int(np.prod(x_shape)))
-                    x = np.frombuffer(x_shared, dtype='f').reshape(x_shape)
-                except MemoryError:
-                    raise MemoryError(f"Insufficient memory for shared array with shape: {x_shape}")
-
-                y_shape = (len(idx_ind), self.horizon, self.data.shape[1], 1)
-                y_shared = mp.RawArray('f', int(np.prod(y_shape)))
-                y = np.frombuffer(y_shared, dtype='f').reshape(y_shape)
-
-                array_size = len(idx_ind)
-                num_threads = max(len(idx_ind) // 2, 1)
-                chunk_size = array_size // num_threads
-                threads = []
-                for i in range(num_threads):
-                    start_index = i * chunk_size
-                    end_index = start_index + chunk_size if i < num_threads - 1 else array_size
-                    thread = threading.Thread(target=self.write_to_shared_array, args=(x, y, idx_ind, start_index, end_index))
-                    thread.start()
-                    threads.append(thread)
-
-                for thread in threads:
-                    thread.join()
-
-                yield (x, y)
-                self.current_ind += 1
-
-        return _wrapper()
 
 class IncidentDataLoader(object):
-    def __init__(self, samples, event, bs, logger, x_offsets=None, y_offsets=None, input_dim=None, incidents_sensor=None):
-        self.event = event
-        self.samples = samples
-        self.size = len(samples)
+    def __init__(self, samples, incident, bs, logger, input_dim=None, sensor_info=None):
+        self.samples = list(samples)
+        self.incident = incident
+        self.size = len(self.samples)
         self.bs = bs
-        self.num_batch = max(1, int(self.size // self.bs)) if self.size > 0 else 0
+        self.num_batch = int(np.ceil(self.size / self.bs)) if self.size > 0 else 0
         self.current_ind = 0
         self.input_dim = input_dim
-        self.incidents_sensor = incidents_sensor
+        self.sensor_info = sensor_info
 
-        first_sample = samples[0]
+        if self.size == 0:
+            raise ValueError('No samples were loaded.')
+
+        first_sample = self.samples[0]
+        self._validate_sample(first_sample)
         self.seq_len = first_sample['x_data'].shape[0]
         self.horizon = first_sample['y_data'].shape[0]
         self.num_nodes = first_sample['x_data'].shape[1]
-        self.feature_dim = first_sample['x_data'].shape[2]
-        
-        if x_offsets is None:
-            self.x_offsets = np.arange(-(self.seq_len - 1), 1, 1)
-        else:
-            self.x_offsets = x_offsets
-            
-        if y_offsets is None:
-            self.y_offsets = np.arange(1, (self.horizon + 1), 1)
-        else:
-            self.y_offsets = y_offsets
-        
+
         logger.info(f'Samples: {self.size}, Batches: {self.num_batch}')
-        logger.info(f'Shape: x=({self.seq_len},{self.num_nodes},{self.input_dim}), y=({self.horizon},{self.num_nodes},1)')
+        logger.info(
+            f'Shape: x=({self.seq_len},{self.num_nodes},{self.input_dim}), '
+            f'y=({self.horizon},{self.num_nodes},1)'
+        )
+
+    def _validate_sample(self, sample):
+        required = ['x_data', 'y_data']
+        if self.incident:
+            required.extend([
+                'incident_features',
+                'incident_position',
+                'incident_distances',
+            ])
+        missing = [key for key in required if key not in sample]
+        if missing:
+            raise KeyError(f'Sample is missing required keys: {missing}')
 
     def shuffle(self):
         indices = np.random.permutation(self.size)
         self.samples = [self.samples[i] for i in indices]
 
-    def write_to_shared_array(self, x, y, batch_samples, start_idx, end_idx):
-        for i in range(start_idx, end_idx):
-            sample = batch_samples[i-start_idx]
-            x[i] = sample['x_data'][..., :self.input_dim]
-            y[i] = sample['y_data'][..., :1]
+    def _stack_xy(self, batch_samples):
+        x = np.stack([
+            np.asarray(sample['x_data'], dtype=np.float32)[..., :self.input_dim]
+            for sample in batch_samples
+        ], axis=0)
+        y = np.stack([
+            np.asarray(sample['y_data'], dtype=np.float32)[..., :1]
+            for sample in batch_samples
+        ], axis=0)
+        return x, y
+
+    def _incident_features_to_array(self, features):
+        if isinstance(features, dict):
+            return np.asarray([
+                features.get('Incident Time', 0.0),
+                features.get('Description', 0),
+                features.get('Type', 0),
+                features.get('Holiday', 0),
+            ], dtype=np.float32)
+        return np.asarray(features, dtype=np.float32)
+
+    def _sensor_batch(self, batch_size):
+        if self.sensor_info is None:
+            return None
+        return {
+            key: torch.as_tensor(value).unsqueeze(0).expand(batch_size, -1)
+            for key, value in self.sensor_info.items()
+            if key in ['sensor_type', 'surface', 'roadway_use', 'road_width', 'speed_limit']
+        }
+
+    def _build_batch(self, batch_samples):
+        x, y = self._stack_xy(batch_samples)
+        if not self.incident:
+            return x, y
+
+        batch_size = len(batch_samples)
+        batch = {
+            'x_data': x,
+            'y_data': y,
+            'incident_features': np.stack([
+                self._incident_features_to_array(sample['incident_features'])
+                for sample in batch_samples
+            ], axis=0),
+            'incident_position': np.asarray([
+                sample['incident_position'] for sample in batch_samples
+            ], dtype=np.int64),
+            'incident_distances': np.stack([
+                np.asarray(sample['incident_distances'], dtype=np.float32)
+                for sample in batch_samples
+            ], axis=0),
+        }
+
+        sensor_data = self._sensor_batch(batch_size)
+        if sensor_data is not None:
+            batch['sensor_data'] = sensor_data
+
+        return batch
 
     def get_iterator(self):
         self.current_ind = 0
 
         def _wrapper():
-            if self.size == 0:
-                return
-                
             while self.current_ind < self.num_batch:
                 start_ind = self.bs * self.current_ind
                 end_ind = min(self.size, self.bs * (self.current_ind + 1))
                 batch_samples = self.samples[start_ind:end_ind]
-                
-                if len(batch_samples) == 0:
-                    self.current_ind += 1
-                    continue
-                batch_size = len(batch_samples)
-                feature_dim = self.input_dim
-                x_shape = (batch_size, self.seq_len, self.num_nodes, feature_dim)
-                if feature_dim == 5:
-                    y_shape = (batch_size, self.horizon, self.num_nodes, 3)
-                else:
-                    y_shape = (batch_size, self.horizon, self.num_nodes, 1)
-
-                try:
-                    x_shared = mp.RawArray('f', int(np.prod(x_shape)))
-                    x = np.frombuffer(x_shared, dtype='f').reshape(x_shape)
-                    
-                    y_shared = mp.RawArray('f', int(np.prod(y_shape)))
-                    y = np.frombuffer(y_shared, dtype='f').reshape(y_shape)
-                except MemoryError:
-                    raise MemoryError(f"Insufficient memory for shapes: {x_shape}, {y_shape}")
-                
-                array_size = batch_size
-                num_threads = max(batch_size // 2, 1)
-                chunk_size = array_size // num_threads
-                threads = []
-                
-                for i in range(num_threads):
-                    start_index = i * chunk_size
-                    end_index = start_index + chunk_size if i < num_threads - 1 else array_size
-                    
-                    thread = threading.Thread(
-                        target=self.write_to_shared_array, 
-                        args=(x, y, batch_samples, start_index, end_index)
-                    )
-                    thread.start()
-                    threads.append(thread)
-                
-                for thread in threads:
-                    thread.join()
-                
-                if self.event:
-                    event_features_list = []
-                    for sample in batch_samples:
-                        # incident -> event
-                        event_dict = sample['event_features']
-                        event_array = [
-                            event_dict.get('Event Time', 0.0),
-                            event_dict.get('Description', 0),
-                            event_dict.get('Type', 0),
-                            event_dict.get('Holiday', 0)
-                        ]
-                        event_features_list.append(event_array)
-                    
-                    batch_event_data = {
-                        'x_data': x,
-                        'y_data': y,
-                        'incident_features': np.array(event_features_list),
-                        'incident_position': np.array([sample['event_position'] for sample in batch_samples]),
-                        'incident_distances': np.array([sample['event_distances'] for sample in batch_samples]),
-                        'event_features': np.array(event_features_list),
-                        'event_position': np.array([sample['event_position'] for sample in batch_samples]),
-                        'event_distances': np.array([sample['event_distances'] for sample in batch_samples]),
-                        'durations': np.array([sample['durations'] for sample in batch_samples]),
-                    }
-                    
-                    if isinstance(self.incidents_sensor, dict):
-                        sensor_type = np.array(self.incidents_sensor['sensor_type'], dtype=np.int64)
-                        surface = np.array(self.incidents_sensor['surface'], dtype=np.int64)
-                        roadway_use = np.array(self.incidents_sensor['roadway_use'], dtype=np.int64)
-                        road_width = np.array(self.incidents_sensor['road_width'], dtype=np.float32)
-                        speed_limit = np.array(self.incidents_sensor['speed_limit'], dtype=np.float32)
-                        
-                        batch_event_data['sensor_data'] = {
-                            'sensor_type': torch.tensor(sensor_type, dtype=torch.long).unsqueeze(0).expand(batch_size, -1),
-                            'surface': torch.tensor(surface, dtype=torch.long).unsqueeze(0).expand(batch_size, -1),
-                            'roadway_use': torch.tensor(roadway_use, dtype=torch.long).unsqueeze(0).expand(batch_size, -1),
-                            'road_width': torch.tensor(road_width, dtype=torch.float).unsqueeze(0).expand(batch_size, -1),
-                            'speed_limit': torch.tensor(speed_limit, dtype=torch.float).unsqueeze(0).expand(batch_size, -1),
-                        }
-                    
-                    yield batch_event_data
-                else:
-                    yield (x, y)
-                
                 self.current_ind += 1
-                
-                del x_shared, y_shared, x, y
-                gc.collect()
+                yield self._build_batch(batch_samples)
 
         return _wrapper()
 
 
 class StandardScaler():
     def __init__(self, mean, std):
-        self.mean = torch.tensor(mean)
-        self.std = torch.tensor(std)
+        self.mean = torch.as_tensor(mean, dtype=torch.float32)
+        self.std = torch.as_tensor(std, dtype=torch.float32)
 
     def transform(self, data):
-        return (data - self.mean) / self.std
-
+        mean = self.mean.to(data.device) if torch.is_tensor(data) else self.mean
+        std = self.std.to(data.device) if torch.is_tensor(data) else self.std
+        return (data - mean) / std
 
     def inverse_transform(self, data):
-        return (data * self.std) + self.mean
+        mean = self.mean.to(data.device) if torch.is_tensor(data) else self.mean
+        std = self.std.to(data.device) if torch.is_tensor(data) else self.std
+        return (data * std) + mean
+
+
+def _required_file(data_path, filename):
+    path = os.path.join(data_path, filename)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f'Required dataset file not found: {path}')
+    return path
+
+
+def _clean_text(value):
+    if value is None:
+        return 'Unknown'
+    value = str(value).strip()
+    return value if value else 'Unknown'
+
+
+def _float_value(value, default):
+    try:
+        if value is None or str(value).strip() == '':
+            return default
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _first_column(row, candidates, default=None):
+    for name in candidates:
+        if name in row:
+            return row[name]
+    return default
+
+
+def _encode_categories(values):
+    mapping = {}
+    encoded = []
+    for value in values:
+        key = _clean_text(value)
+        if key not in mapping:
+            mapping[key] = len(mapping)
+        encoded.append(mapping[key])
+    return np.asarray(encoded, dtype=np.int64), mapping
+
+
+def _load_sensor_info(data_path, node_num, args, logger):
+    if not getattr(args, 'use_sensor_info', False):
+        args.sensor_type_size = 1
+        args.surface_size = 1
+        args.roadway_use_size = 1
+        return None
+
+    sensor_file = _required_file(data_path, 'sensors.csv')
+    with open(sensor_file, 'r', newline='', encoding='utf-8-sig') as f:
+        rows = list(csv.DictReader(f))
+
+    if len(rows) != node_num:
+        raise ValueError(
+            f'sensors.csv has {len(rows)} rows, but dataset {args.dataset} expects {node_num} nodes.'
+        )
+
+    sensor_type_values = [_first_column(row, ['Sensor Type', 'Type'], 'Unknown') for row in rows]
+    surface_values = [_first_column(row, ['Surface'], 'Unknown') for row in rows]
+    roadway_use_values = [_first_column(row, ['Roadway Use'], 'Unknown') for row in rows]
+    road_width_values = [
+        _float_value(_first_column(row, ['Road Width'], 0.0), 0.0)
+        for row in rows
+    ]
+    speed_limit_values = [
+        _float_value(_first_column(row, ['Design Speed Limit', 'Speed Limit'], 50.0), 50.0)
+        for row in rows
+    ]
+
+    sensor_type, sensor_type_mapping = _encode_categories(sensor_type_values)
+    surface, surface_mapping = _encode_categories(surface_values)
+    roadway_use, roadway_use_mapping = _encode_categories(roadway_use_values)
+
+    args.sensor_type_size = max(len(sensor_type_mapping), 1)
+    args.surface_size = max(len(surface_mapping), 1)
+    args.roadway_use_size = max(len(roadway_use_mapping), 1)
+
+    logger.info(
+        'Loaded sensor metadata: '
+        f'{len(rows)} rows, '
+        f'{args.sensor_type_size} sensor types, '
+        f'{args.surface_size} surfaces, '
+        f'{args.roadway_use_size} roadway uses'
+    )
+
+    return {
+        'sensor_type': sensor_type,
+        'surface': surface,
+        'roadway_use': roadway_use,
+        'road_width': np.asarray(road_width_values, dtype=np.float32),
+        'speed_limit': np.asarray(speed_limit_values, dtype=np.float32),
+    }
 
 
 def load_dataset(data_path, args, logger):
     dataloader = {}
-    
-    for cat in ['train', 'val', 'test']:
-        # incident -> event
-        file_name = f"incident_data_{cat}.npy"
-        file_path = os.path.join(data_path, file_name)
-        
+    node_num = getattr(args, 'node_num', 521)
+    sensor_info = _load_sensor_info(data_path, node_num, args, logger)
+
+    for split in ['train', 'val', 'test']:
+        file_path = _required_file(data_path, f'incident_{split}.npy')
         samples = np.load(file_path, allow_pickle=True)
-        
         if len(samples) == 0:
-            logger.error(f"No samples in {file_path}")
-            continue
-            
+            raise ValueError(f'No samples in {file_path}')
+
         first_sample = samples[0]
         x_shape = first_sample['x_data'].shape
         y_shape = first_sample['y_data'].shape
-        logger.info(f"{cat}: samples={len(samples)}, x={x_shape}, y={y_shape}")
-        
-        dataloader[cat + '_loader'] = IncidentDataLoader(
-            samples, args.incident, args.bs, logger, input_dim=args.input_dim, incidents_sensor=args.use_sensor_info
+        logger.info(f'{split}: samples={len(samples)}, x={x_shape}, y={y_shape}')
+
+        dataloader[split + '_loader'] = IncidentDataLoader(
+            samples=samples,
+            incident=args.incident,
+            bs=args.bs,
+            logger=logger,
+            input_dim=args.input_dim,
+            sensor_info=sensor_info,
         )
-    
-    stats_path = f'incident_data_stats.npz'
-    stats_file = os.path.join(data_path, stats_path)
-    
-    if os.path.exists(stats_file):
-        stats = np.load(stats_file, allow_pickle=True)
-        logger.info(f"Stats: mean={stats['mean']}, std={stats['std']}")
-        scaler = StandardScaler(mean=stats['mean'], std=stats['std'])
-    else:
-        logger.warning(f"Stats file not found, using default scaler")
-        scaler = StandardScaler(mean=0, std=1)
-    
+
+    stats_file = _required_file(data_path, 'incident_stats.npz')
+    stats = np.load(stats_file, allow_pickle=True)
+    logger.info(f"Stats: mean={stats['mean']}, std={stats['std']}")
+    scaler = StandardScaler(mean=stats['mean'], std=stats['std'])
+
     return dataloader, scaler
 
 
@@ -279,7 +267,7 @@ def load_adj_from_pickle(pickle_file):
     try:
         with open(pickle_file, 'rb') as f:
             pickle_data = pickle.load(f)
-    except UnicodeDecodeError as e:
+    except UnicodeDecodeError:
         with open(pickle_file, 'rb') as f:
             pickle_data = pickle.load(f, encoding='latin1')
     except Exception as e:
@@ -293,16 +281,25 @@ def load_adj_from_numpy(numpy_file):
 
 
 def get_dataset_info(dataset):
-    base_dir = os.getcwd() + '/data/'
-    d = {
-         'CA': [base_dir+'ca', base_dir+'ca/ca_rn_adj.npy', 8600],
-         'GLA': [base_dir+'gla', base_dir+'gla/gla_rn_adj.npy', 3834],
-         'GBA': [base_dir+'gba', base_dir+'gba/gba_rn_adj.npy', 2352],
-         'SD': [base_dir+'sd', base_dir+'sd/sd_rn_adj.npy', 716],
-         'xtraffic': [base_dir+'xtraffic', base_dir+'xtraffic/adj_matrix.npy', 16972],
-         'Alameda': [base_dir+'xtraffic/Alameda', base_dir+'xtraffic/Alameda/adj_matrix.npy', 521],
-         'Contra_Costa': [base_dir+'xtraffic/Contra_Costa', base_dir+'xtraffic/Contra_Costa/adj_matrix.npy', 496],
-         'Orange': [base_dir+'xtraffic/Orange', base_dir+'xtraffic/Orange/adj_matrix.npy', 990]
-        }
-    assert dataset in d.keys()
-    return d[dataset]
+    base_dir = os.path.join(os.getcwd(), 'data')
+    dataset_info = {
+        'Alameda': [
+            os.path.join(base_dir, 'xtraffic', 'Alameda'),
+            os.path.join(base_dir, 'xtraffic', 'Alameda', 'adj_matrix.npy'),
+            521,
+        ],
+        'Contra_Costa': [
+            os.path.join(base_dir, 'xtraffic', 'Contra_Costa'),
+            os.path.join(base_dir, 'xtraffic', 'Contra_Costa', 'adj_matrix.npy'),
+            496,
+        ],
+        'Orange': [
+            os.path.join(base_dir, 'xtraffic', 'Orange'),
+            os.path.join(base_dir, 'xtraffic', 'Orange', 'adj_matrix.npy'),
+            990,
+        ],
+    }
+    if dataset not in dataset_info:
+        supported = ', '.join(sorted(dataset_info))
+        raise ValueError(f'Unknown dataset: {dataset}. Supported datasets: {supported}')
+    return dataset_info[dataset]

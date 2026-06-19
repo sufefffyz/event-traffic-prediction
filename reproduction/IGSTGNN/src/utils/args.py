@@ -4,11 +4,7 @@ def get_public_config():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--dataset', type=str, default='Alameda')
-    # parser.add_argument('--dataset', type=str, default='Orange')
-
-    # if need to use the data from multiple years, please use underline to separate them, e.g., 2018_2019
-    # parser.add_argument('--years', type=str, default='2019')
-    parser.add_argument('--model_name', type=str, default='')
+    parser.add_argument('--model_name', type=str, default='igstgnn')
     parser.add_argument('--seed', type=int, default=2025)
 
     parser.add_argument('--bs', type=int, default=64)
@@ -23,6 +19,6 @@ def get_public_config():
     parser.add_argument('--max_epochs', type=int, default=100)
     parser.add_argument('--patience', type=int, default=20)
     
-    parser.add_argument('--incident', action='store_true', default=False) # Whether to use incident data
+    parser.add_argument('--incident', action='store_true', default=False)
     parser.add_argument('--use_sensor_info', action='store_true', default=False)
     return parser

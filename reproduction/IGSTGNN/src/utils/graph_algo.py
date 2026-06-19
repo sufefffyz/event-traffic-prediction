@@ -12,7 +12,7 @@ def _to_coo_float32(mat):
     return sp.coo_matrix(np.asarray(mat, dtype=np.float32))
 
 def _fix_invalid(spmat):
-    """If sparse matrix data contains NaN/Inf → 0"""
+    """If sparse matrix data contains NaN/Inf, replace it with 0."""
     if np.isnan(spmat.data).any() or np.isinf(spmat.data).any():
         spmat.data = np.nan_to_num(spmat.data, nan=0.0, posinf=0.0,
                                    neginf=0.0)
@@ -95,7 +95,7 @@ def calculate_scaled_laplacian(adj_mx, lambda_max=None, undirected=True):
             if not np.isfinite(lambda_max) or lambda_max <= 0:
                 raise ValueError
         except Exception:
-            warnings.warn("λ_max estimation failed, using 2.0")
+            warnings.warn("lambda_max estimation failed, using 2.0")
             lambda_max = 2.0
     I = sp.eye(L.shape[0], dtype=np.float32)
     L_scaled = (2.0 / lambda_max) * L - I

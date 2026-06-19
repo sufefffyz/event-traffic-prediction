@@ -1,23 +1,81 @@
-import torch
 import numpy as np
-import os
-from src.base.engine import BaseEngine
+import torch
 from tqdm import tqdm
-from src.utils.metrics import masked_mape, masked_rmse, compute_all_metrics
+
+from src.base.engine import BaseEngine
+from src.utils.metrics import compute_all_metrics, masked_mape, masked_rmse
+
 
 class IGSTGNN_Engine(BaseEngine):
     """
-    Incident-aware IGSTGNN engine
+    Incident-aware IGSTGNN engine.
     """
     def __init__(self, cl_step, warm_step, horizon, incident=False, **args):
-        self._start_time = args.pop('time', None)
-        self._module_name = args.pop('module_name', None)
         super(IGSTGNN_Engine, self).__init__(**args)
         self._cl_step = cl_step
         self._warm_step = warm_step
         self._horizon = horizon
         self._cl_len = 0
         self._incident = incident
+
+    def _as_float_tensor(self, value):
+        return torch.as_tensor(value, dtype=torch.float32, device=self._device)
+
+    def _as_tensor(self, value):
+        return torch.as_tensor(value, device=self._device)
+
+    def _prepare_batch(self, batch):
+        if isinstance(batch, dict):
+            X = self._as_float_tensor(batch['x_data'])
+            label = self._as_float_tensor(batch['y_data'])
+
+            incident_data = None
+            if self._incident:
+                incident_data = {
+                    'incident': self._as_float_tensor(batch['incident_features']),
+                    'position': self._as_tensor(batch['incident_position']),
+                    'distances': self._as_float_tensor(batch['incident_distances']),
+                }
+
+            sensor_data = None
+            if 'sensor_data' in batch:
+                sensor_data = {
+                    key: self._as_tensor(value)
+                    for key, value in batch['sensor_data'].items()
+                }
+
+            return X, label, incident_data, sensor_data
+
+        X, label = batch
+        X = self._as_float_tensor(X)
+        label = self._as_float_tensor(label)
+        return X, label, None, None
+
+    def _predict(self, X, label, incident_data, sensor_data):
+        if incident_data is not None:
+            return self.model(
+                X,
+                label,
+                incident_data=incident_data,
+                sensor_data=sensor_data,
+            )
+        return self.model(X, label)
+
+    def _mask_value(self, label):
+        mask_value = torch.tensor(0.0, device=label.device)
+        if label.min() < 1:
+            mask_value = label.min()
+        return mask_value
+
+    def _update_curriculum_length(self):
+        self._iter_cnt += 1
+        if self._iter_cnt < self._warm_step:
+            self._cl_len = self._horizon
+        elif self._iter_cnt == self._warm_step:
+            self._cl_len = 1
+        elif self._cl_step > 0:
+            if (self._iter_cnt - self._warm_step) % self._cl_step == 0 and self._cl_len < self._horizon:
+                self._cl_len += 1
 
     def train_batch(self):
         self.model.train()
@@ -27,65 +85,32 @@ class IGSTGNN_Engine(BaseEngine):
         train_rmse = []
         self._dataloader['train_loader'].shuffle()
 
-        # Get iterator and total number of batches
         iterator = self._dataloader['train_loader'].get_iterator()
         total_batches = self._dataloader['train_loader'].num_batch
-        
-        # Create progress bar
-        progress_bar = tqdm(iterator, total=total_batches, desc="Training",
-                            unit="batch", leave=False, position=0, 
-                            dynamic_ncols=True, colour="green")
-        try:
-            for batch_idx, batch in enumerate(progress_bar):
-                self._optimizer.zero_grad()
-                
-                if self._incident and isinstance(batch, dict):
-                    X = batch['x_data']
-                    label = batch['y_data']
-                    incident_data = {
-                        'incident': batch['incident_features'],
-                        'position': batch['incident_position'],
-                        'distances': batch['incident_distances'],
-                        'durations': batch['durations']
-                    }
-                    
-                    X, label = self._to_device(self._to_tensor([X, label]))
-                    for key in incident_data:
-                        incident_data[key] = self._to_device(self._to_tensor(incident_data[key]))
-                    
-                    sensor_data = None
-                    if 'sensor_data' in batch:
-                        sensor_data = {}
-                        for key, value in batch['sensor_data'].items():
-                            sensor_data[key] = self._to_device(value)
-                    
-                    pred = self.model(X, label, incident_data=incident_data, sensor_data=sensor_data)
-                else:
-                    if isinstance(batch, tuple) and len(batch) == 2:
-                        X, label = batch
-                    else:
-                        X = batch[0]
-                        label = batch[1]
-                    X, label = self._to_device(self._to_tensor([X, label]))
-                    pred = self.model(X, label)
+        progress_bar = tqdm(
+            iterator,
+            total=total_batches,
+            desc='Training',
+            unit='batch',
+            leave=False,
+            position=0,
+            dynamic_ncols=True,
+            colour='green',
+        )
 
+        try:
+            for batch in progress_bar:
+                self._optimizer.zero_grad()
+
+                X, label, incident_data, sensor_data = self._prepare_batch(batch)
+                pred = self._predict(X, label, incident_data, sensor_data)
                 pred, label = self._inverse_transform([pred, label])
 
-                mask_value = torch.tensor(0)
-                if label.min() < 1:
-                    mask_value = label.min()
+                mask_value = self._mask_value(label)
                 if self._iter_cnt == 0:
                     print('check mask value', mask_value)
 
-                self._iter_cnt += 1
-                if self._iter_cnt < self._warm_step:
-                    self._cl_len = self._horizon
-                elif self._iter_cnt == self._warm_step:
-                    self._cl_len = 1
-                else:
-                    if (self._iter_cnt - self._warm_step) % self._cl_step == 0 and self._cl_len < self._horizon:
-                        self._cl_len += 1
-
+                self._update_curriculum_length()
                 pred = pred[:, :self._cl_len, :, :]
                 label = label[:, :self._cl_len, :, :]
 
@@ -103,59 +128,14 @@ class IGSTGNN_Engine(BaseEngine):
                 train_rmse.append(rmse)
 
                 progress_bar.set_postfix({
-                    "loss": f"{loss.item():.4f}",
-                    "mape": f"{mape:.4f}",
-                    "rmse": f"{rmse:.4f}"
+                    'loss': f'{loss.item():.4f}',
+                    'mape': f'{mape:.4f}',
+                    'rmse': f'{rmse:.4f}',
                 })
-
         finally:
             progress_bar.close()
-            
+
         return np.mean(train_loss), np.mean(train_mape), np.mean(train_rmse)
-
-    def _forward_batch(self, batch):
-        if self._incident and isinstance(batch, dict):
-            X = batch['x_data']
-            label = batch['y_data']
-            incident_data = {
-                'incident': batch['incident_features'],
-                'position': batch['incident_position'],
-                'distances': batch['incident_distances'],
-                'durations': batch['durations']
-            }
-
-            X, label = self._to_device(self._to_tensor([X, label]))
-            for key in incident_data:
-                incident_data[key] = self._to_device(self._to_tensor(incident_data[key]))
-
-            sensor_data = None
-            if 'sensor_data' in batch:
-                sensor_data = {}
-                for key, value in batch['sensor_data'].items():
-                    sensor_data[key] = self._to_device(value)
-
-            return self.model(X, label, incident_data=incident_data, sensor_data=sensor_data), label
-
-        if isinstance(batch, tuple) and len(batch) == 2:
-            X, label = batch
-        else:
-            X = batch[0]
-            label = batch[1]
-        X, label = self._to_device(self._to_tensor([X, label]))
-        return self.model(X, label), label
-
-    def _collect_test_context(self, batch, context):
-        if not isinstance(batch, dict):
-            return
-        key_map = {
-            'incident_features': 'incident_features',
-            'incident_position': 'incident_position',
-            'incident_distances': 'incident_distances',
-            'durations': 'durations',
-        }
-        for source_key, result_key in key_map.items():
-            if source_key in batch:
-                context.setdefault(result_key, []).append(np.asarray(batch[source_key]))
 
     def evaluate(self, mode):
         if mode == 'test':
@@ -164,20 +144,19 @@ class IGSTGNN_Engine(BaseEngine):
 
         preds = []
         labels = []
-        test_context = {} if mode == 'test' else None
         with torch.no_grad():
             for batch in self._dataloader[mode + '_loader'].get_iterator():
-                if test_context is not None:
-                    self._collect_test_context(batch, test_context)
-                pred, label = self._forward_batch(batch)
+                X, label, incident_data, sensor_data = self._prepare_batch(batch)
+                pred = self._predict(X, label, incident_data, sensor_data)
                 pred, label = self._inverse_transform([pred, label])
+
                 preds.append(pred.squeeze(-1).cpu())
                 labels.append(label.squeeze(-1).cpu())
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
 
-        mask_value = torch.tensor(0)
+        mask_value = torch.tensor(0.0)
         if labels.min() < 1:
             mask_value = labels.min()
 
@@ -202,17 +181,3 @@ class IGSTGNN_Engine(BaseEngine):
 
             log = 'Average Test MAE: {:.4f}, Test RMSE: {:.4f}, Test MAPE: {:.4f}'
             self._logger.info(log.format(np.mean(test_mae), np.mean(test_rmse), np.mean(test_mape)))
-            result_path = os.path.join(self._save_path, 'test_result_s{}.npz'.format(self._seed))
-            result_payload = {
-                'prediction': preds.numpy(),
-                'target': labels.numpy(),
-                'metrics_by_horizon': np.stack([test_mae, test_rmse, test_mape], axis=1),
-                'metrics_average': np.array([np.mean(test_mae), np.mean(test_rmse), np.mean(test_mape)]),
-                'metric_names': np.array(['mae', 'rmse', 'mape']),
-                'checkpoint': np.array(os.path.join(self._save_path, 'best_model_s{}.pt'.format(self._seed))),
-                'mask_value': np.array(mask_value.item() if hasattr(mask_value, 'item') else mask_value),
-            }
-            for key, chunks in test_context.items():
-                result_payload[key] = np.concatenate(chunks, axis=0)
-            np.savez_compressed(result_path, **result_payload)
-            self._logger.info('Saved test result arrays to {}'.format(result_path))

@@ -18,7 +18,7 @@ The imported projects are vendored as plain source directories. Their original `
 | --- | --- | --- |
 | `BasicTS/` | local `STproject/BasicTS` checkout | branch `v0.5.8`, commit `63fa719`, package version `0.5.8` |
 | `reproduction/ConFormer/` | `https://github.com/Dreamzz5/ConFormer.git` | `7d6ab5a6a71bc78a3e0c7835b6a860637d2cc18b` |
-| `reproduction/IGSTGNN/` | `https://github.com/fanlixiang/IGSTGNN.git` | `d8ae94aa3d7dd3f17f03696425515afad3bf398e` |
+| `reproduction/IGSTGNN/` | `https://github.com/fanlixiang/IGSTGNN.git` | `64c6e243466f791f1b75e50421d63e39577ec9fa` |
 
 ## Development Rules
 

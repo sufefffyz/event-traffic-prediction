@@ -2,9 +2,8 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import json
 import os
-# from gmpy2 import is_infinite
+import json
 
 from src.base.model import BaseModel
 
@@ -30,9 +29,9 @@ class IGSTGNN(BaseModel):
         self._k_t = model_args['k_t'] 
         self._num_layers = model_args['layer']
 
-        model_args['use_pre'] = False
-        model_args['dy_graph'] = True 
-        model_args['sta_graph'] = True 
+        model_args.setdefault('use_pre', True)
+        model_args.setdefault('dy_graph', True)
+        model_args.setdefault('sta_graph', True)
 
         self._model_args = model_args 
 
@@ -53,51 +52,30 @@ class IGSTGNN(BaseModel):
         self.out_fc_1 = nn.Linear(self._forecast_dim, self._output_hidden)
         self.out_fc_2 = nn.Linear(self._output_hidden, model_args['gap'])
 
-        dataset = model_args['dataset']
-        data_dir = model_args.get('data_path', f"./data/{dataset}")
+        data_dir = model_args.get('data_path') or os.path.join('.', 'data', model_args['dataset'])
         
         with open(os.path.join(data_dir, 'desc_mapping.json'), 'r') as f:
             desc_mapping = json.load(f)
         with open(os.path.join(data_dir, 'type_mapping.json'), 'r') as f:
             type_mapping = json.load(f)
-            
-        num_desc = len(desc_mapping)
-        num_types = len(type_mapping)
         
-        self.position_embedding = nn.Embedding(12, 8)
-        self.desc_embedding = nn.Embedding(num_desc, 32)
-        self.incident_type_embedding = nn.Embedding(num_types, 8)
-        self.holiday_embedding = nn.Embedding(2, 4)
-        
-        self.delta_time_embedding = nn.Sequential(
-            nn.Linear(1, 16),
-            nn.ReLU(),
-            nn.Linear(16, 4)
-        )
-        
-        time_emb_dim = model_args['time_emb_dim']
-        node_emb_dim = model_args['node_hidden']
-        incident_dim = 8 + 32 + 8 + 4 + time_emb_dim + node_emb_dim
-        incident_dim += 4
-        self.incident_fusion = nn.Sequential(
-            nn.Linear(incident_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, self._hidden_dim)
-        )
-        
-        self.incident_icsf_module = IncidentsIcsfModule(
+        self.icsf_module = IncidentContextSpatialFusion(
             hidden_dim=self._hidden_dim,
             time_emb_dim=model_args['time_emb_dim'],
-            node_emb_dim=model_args['node_hidden'],
             use_sensor_info=model_args.get('use_sensor_info', False),
             num_desc=len(desc_mapping),
-            num_types=len(type_mapping)
+            num_types=len(type_mapping),
+            sensor_type_size=model_args.get('sensor_type_size', 1),
+            surface_size=model_args.get('surface_size', 1),
+            roadway_use_size=model_args.get('roadway_use_size', 1),
         )
 
-        self.incident_hidden_proj = nn.Linear(self._hidden_dim, self._forecast_dim, bias=False)
-        self.incident_trans1 = nn.Linear(self._hidden_dim, model_args['gap'], bias=False)
-        self.lambda_incident = model_args.get('lambda_incident', 0.1)
-        self.sigma_t = nn.Parameter(torch.tensor(model_args.get('sigma_t', 1.0)), requires_grad=False)
+        self.tiid_module = TemporalIncidentImpactDecay(
+            incident_dim=self._hidden_dim,
+            forecast_dim=self._forecast_dim,
+            sigma_t=model_args.get('sigma_t', 1.0),
+            incident_scale=model_args.get('lambda_incident', 1.0),
+        )
 
         self.reset_parameter()
 
@@ -126,8 +104,10 @@ class IGSTGNN(BaseModel):
         num_feat = self._model_args['num_feat']
         node_emb_u = self.node_emb_u
         node_emb_d = self.node_emb_d
-        time_index = (history_data[:, :, :, num_feat] * self._model_args['tpd']).long().clamp(0, self._model_args['tpd'] - 1)
-        day_index = (history_data[:, :, :, num_feat+1] * 7).long().clamp(0, 6)
+        time_index = (history_data[:, :, :, num_feat] * self._model_args['tpd']).long()
+        day_index = (history_data[:, :, :, num_feat + 1] * 7).long()
+        time_index = time_index.clamp(0, self._model_args['tpd'] - 1)
+        day_index = day_index.clamp(0, 6)
         time_in_day_feat = self.T_i_D_emb[time_index]
         day_in_week_feat = self.D_i_W_emb[day_index]
         history_data = history_data[:, :, :, :num_feat]
@@ -137,12 +117,17 @@ class IGSTGNN(BaseModel):
         history_data, node_embedding_u, node_embedding_d, time_in_day_feat, day_in_week_feat = self._prepare_inputs(history_data)
 
         history_data = self.embedding(history_data)
-        incident_effect = None
+        incident_context = None
         if incident_data is not None:
             incident_tod_feat = time_in_day_feat[:, -1, 0, :]
             incident_day_feat = day_in_week_feat[:, -1, 0, :]
-            history_data, incident_effect = self.incident_icsf_module.apply_incident_icsf_fusion(history_data, incident_data, sensor_data,
-                                                                          incident_tod_feat, incident_day_feat)
+            history_data, incident_context = self.icsf_module(
+                history_data,
+                incident_data,
+                sensor_data,
+                incident_tod_feat,
+                incident_day_feat,
+            )
         static_graph, dynamic_graph = self._graph_constructor(node_embedding_u=node_embedding_u, node_embedding_d=node_embedding_d, 
                                                               history_data=history_data, time_in_day_feat=time_in_day_feat, 
                                                               day_in_week_feat=day_in_week_feat)
@@ -163,84 +148,92 @@ class IGSTGNN(BaseModel):
         inh_forecast_hidden = sum(inh_forecast_hidden_list)
         forecast_hidden = dif_forecast_hidden + inh_forecast_hidden
 
-        forecast_hidden = self._apply_incident_decay(forecast_hidden, incident_effect, incident_data)
+        if incident_context is not None:
+            forecast_hidden = self.tiid_module(forecast_hidden, incident_context)
 
         forecast = self.out_fc_2(F.relu(self.out_fc_1(F.relu(forecast_hidden))))
 
-        forecast = self._apply_incident_decay(forecast, incident_effect, incident_data)
         forecast = forecast.transpose(1,2).contiguous().view(forecast.shape[0], forecast.shape[2], -1)
         return forecast.transpose(1, 2).unsqueeze(-1)
 
-    def _apply_incident_decay(self, forecast_hidden, incident_effect, incident_data):
-        """
-        Apply incident decay mechanism to prediction results
-        """
-        if incident_data is None or incident_effect is None:
-            return forecast_hidden
 
-        batch_size, forecast_len, num_nodes, hidden_dim = forecast_hidden.shape
-
-        incident_distances = incident_data['distances']
-        spatial_attention = self.incident_icsf_module.get_attention_weights(incident_distances)
-        
-        distance_mask = (incident_distances.sum(dim=-1) > 0).float().unsqueeze(-1)
-
-        spatial_attention = spatial_attention.sum(dim=-1, keepdim=True) * distance_mask
-
-        spatial_attention[distance_mask == 0] = 1e7
-
-        sigma_t = self.sigma_t
-
-        time_steps = torch.arange(1, forecast_len + 1, dtype=torch.float32, device=forecast_hidden.device)
-        d_t_squared = time_steps ** 2
-
-        temporal_decay = torch.exp(-d_t_squared / (2 * sigma_t ** 2))
-        temporal_decay = temporal_decay.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
-
-        incident_effect_expanded = incident_effect.unsqueeze(1).expand(-1, forecast_len, -1, -1)
-
-        if hidden_dim == incident_effect.shape[-1]:
-            decayed_incident_effect = incident_effect_expanded
-        elif hidden_dim == self._forecast_dim:
-            decayed_incident_effect = self.incident_hidden_proj(incident_effect_expanded)
-        elif hidden_dim == self._model_args['gap']:
-            decayed_incident_effect = self.incident_trans1(incident_effect_expanded)
-        else:
-            raise ValueError(f"Unsupported incident decay target dimension: {hidden_dim}")
-
-        enhanced_forecast_hidden = forecast_hidden + decayed_incident_effect * temporal_decay
-
-        return enhanced_forecast_hidden
-
-
-class IncidentsIcsfModule(nn.Module):
+class TemporalIncidentImpactDecay(nn.Module):
     """
-    Incident ICSF module - Handles incident information fusion and attention computation
+    Temporal Incident Impact Decay (TIID).
+
+    The module follows the paper pipeline: the ST backbone first produces
+    hidden states over the prediction horizon, then TIID adds a temporally
+    decayed incident context before the prediction head maps hidden states
+    to traffic forecasts.
     """
-    def __init__(self, hidden_dim, time_emb_dim, node_emb_dim, use_sensor_info, num_desc, num_types):
-        super(IncidentsIcsfModule, self).__init__()
-        
-        self.position_embedding = nn.Embedding(12, 8)
-        self.desc_embedding = nn.Embedding(num_desc, 32)
-        self.incident_type_embedding = nn.Embedding(num_types, 8)
-        self.holiday_embedding = nn.Embedding(2, 4)
-        
-        self.delta_time_embedding = nn.Sequential(
-            nn.Linear(1, 16),
-            nn.ReLU(),
-            nn.Linear(16, 4)
+    def __init__(self, incident_dim, forecast_dim, sigma_t=1.0, incident_scale=1.0):
+        super().__init__()
+        self.context_projection = nn.Linear(incident_dim, forecast_dim, bias=False)
+        self.register_buffer('sigma_t', torch.tensor(float(sigma_t)))
+        self.incident_scale = float(incident_scale)
+
+    def forward(self, forecast_hidden, incident_context):
+        forecast_len = forecast_hidden.shape[1]
+        time_steps = torch.arange(
+            1,
+            forecast_len + 1,
+            dtype=forecast_hidden.dtype,
+            device=forecast_hidden.device,
         )
-        
-        incident_dim = 8 + 32 + 8 + 4 + time_emb_dim + node_emb_dim
-        incident_dim += 4
+        sigma_t = self.sigma_t.to(device=forecast_hidden.device, dtype=forecast_hidden.dtype)
+        temporal_decay = torch.exp(-(time_steps ** 2) / (2 * sigma_t ** 2))
+        temporal_decay = temporal_decay.view(1, forecast_len, 1, 1)
+
+        projected_context = self.context_projection(incident_context)
+        temporal_context = projected_context.unsqueeze(1) * temporal_decay
+        return forecast_hidden + self.incident_scale * temporal_context
+
+
+class IncidentContextSpatialFusion(nn.Module):
+    """
+    Incident-Context Spatial Fusion (ICSF).
+    """
+    def __init__(
+        self,
+        hidden_dim,
+        time_emb_dim,
+        use_sensor_info,
+        num_desc,
+        num_types,
+        sensor_type_size=1,
+        surface_size=1,
+        roadway_use_size=1,
+    ):
+        super(IncidentContextSpatialFusion, self).__init__()
+
+        self.position_emb_dim = 8
+        self.desc_emb_dim = 32
+        self.type_emb_dim = 8
+        self.holiday_emb_dim = 4
+        self.context_time_emb_dim = 2 * time_emb_dim
+
+        self.position_embedding = nn.Embedding(12, self.position_emb_dim)
+        self.desc_embedding = nn.Embedding(num_desc, self.desc_emb_dim)
+        self.incident_type_embedding = nn.Embedding(num_types, self.type_emb_dim)
+        self.holiday_embedding = nn.Embedding(2, self.holiday_emb_dim)
+
+        self.incident_input_dim = (
+            self.position_emb_dim
+            + self.desc_emb_dim
+            + self.type_emb_dim
+            + self.holiday_emb_dim
+            + self.context_time_emb_dim
+        )
         self.incident_fusion = nn.Sequential(
-            nn.Linear(incident_dim, 64),
+            nn.Linear(self.incident_input_dim, 64),
             nn.ReLU(),
             nn.Linear(64, hidden_dim)
         )
         
         self.icsf_dim = hidden_dim
-        
+        self.q_proj = nn.Linear(hidden_dim, self.icsf_dim, bias=False)
+        self.k_proj = nn.Linear(hidden_dim, self.icsf_dim, bias=False)
+        self.v_proj = nn.Linear(hidden_dim, self.icsf_dim, bias=False)
         self.distance_encoder = nn.Sequential(
             nn.Linear(3, 32),
             nn.ReLU(),
@@ -248,26 +241,19 @@ class IncidentsIcsfModule(nn.Module):
             nn.ReLU(),
             nn.Linear(16, self.icsf_dim)
         )
-        self.k_proj = nn.Linear(hidden_dim, self.icsf_dim)
-        self.v_proj = nn.Linear(hidden_dim, self.icsf_dim)
-        
-        self.attn_mlp = nn.Sequential(
-            nn.Linear(self.icsf_dim * 2, 64),
-            nn.ReLU(),
-            nn.Linear(64, self.icsf_dim)
-        )
         
         self.use_sensor_info = use_sensor_info
         
         if self.use_sensor_info:
-            self.sensor_type_embedding = nn.Embedding(3 + 1, 8)
-            self.surface_embedding = nn.Embedding(4 + 1, 8)
-            self.roadway_use_embedding = nn.Embedding(8 + 1, 8)
+            self.sensor_feature_emb_dim = 8
+            self.sensor_type_embedding = nn.Embedding(max(sensor_type_size, 1), self.sensor_feature_emb_dim)
+            self.surface_embedding = nn.Embedding(max(surface_size, 1), self.sensor_feature_emb_dim)
+            self.roadway_use_embedding = nn.Embedding(max(roadway_use_size, 1), self.sensor_feature_emb_dim)
             
-            self.road_width_linear = nn.Linear(1, 8)
-            self.speed_limit_linear = nn.Linear(1, 8)
+            self.road_width_linear = nn.Linear(1, self.sensor_feature_emb_dim)
+            self.speed_limit_linear = nn.Linear(1, self.sensor_feature_emb_dim)
             
-            sensor_embed_dim = 8 + 8 + 8 + 8 + 8
+            sensor_embed_dim = self.sensor_feature_emb_dim * 5
             self.sensor_fusion = nn.Sequential(
                 nn.Linear(sensor_embed_dim, 32),
                 nn.ReLU(),
@@ -275,51 +261,60 @@ class IncidentsIcsfModule(nn.Module):
                 nn.Linear(32, self.icsf_dim)
             )
         
-        if self.use_sensor_info:
-            icsf_fusion_dim = self.icsf_dim + self.icsf_dim + self.icsf_dim
-        else:
-            icsf_fusion_dim = self.icsf_dim + self.icsf_dim
+        self.attn_dim = self.icsf_dim
+        self.distance_dim = self.icsf_dim
+        self.sensor_dim = self.icsf_dim if self.use_sensor_info else 0
+        self.icsf_fusion_dim = self.attn_dim + self.distance_dim + self.sensor_dim
         
         self.icsf_fusion_mlp = nn.Sequential(
-            nn.Linear(icsf_fusion_dim, 64),
+            nn.Linear(self.icsf_fusion_dim, 64),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(64, self.icsf_dim)
         )
+        self.output_norm = nn.LayerNorm(hidden_dim)
 
     def embed_incident_features(self, incident_data, incident_tod_feat=None, incident_day_feat=None):
         """
         Embed incident features
         """
-        batch_size = incident_data['incident'].size(0)
         incident_features = incident_data['incident']
+        batch_size = incident_features.size(0)
         embeddings = []
         
-        position = incident_data['position'].long()
+        position = incident_data['position'].long().clamp(0, self.position_embedding.num_embeddings - 1)
         position_emb = self.position_embedding(position)
         embeddings.append(position_emb)
 
-        description = incident_features[:, 1].long()
+        description = incident_features[:, 1].long().clamp(0, self.desc_embedding.num_embeddings - 1)
         desc_emb = self.desc_embedding(description)
         embeddings.append(desc_emb)
 
-        incident_type = incident_features[:, 2].long()
+        incident_type = incident_features[:, 2].long().clamp(0, self.incident_type_embedding.num_embeddings - 1)
         type_emb = self.incident_type_embedding(incident_type)
         embeddings.append(type_emb)
 
-        holiday = incident_features[:, 3].long()
+        holiday = incident_features[:, 3].long().clamp(0, self.holiday_embedding.num_embeddings - 1)
         holiday_emb = self.holiday_embedding(holiday)
         embeddings.append(holiday_emb)
 
-        if incident_tod_feat is not None:
-            embeddings.append(incident_tod_feat)
-        if incident_day_feat is not None:
-            embeddings.append(incident_day_feat)
+        if incident_tod_feat is None:
+            incident_tod_feat = torch.zeros(
+                batch_size,
+                self.context_time_emb_dim // 2,
+                device=incident_features.device,
+                dtype=incident_features.dtype,
+            )
+        if incident_day_feat is None:
+            incident_day_feat = torch.zeros(
+                batch_size,
+                self.context_time_emb_dim // 2,
+                device=incident_features.device,
+                dtype=incident_features.dtype,
+            )
+        embeddings.append(incident_tod_feat)
+        embeddings.append(incident_day_feat)
 
-        delta_time = incident_features[:, 0].unsqueeze(-1)
-        delta_time_emb = self.delta_time_embedding(delta_time)
-        embeddings.append(delta_time_emb)
-        
         combined_embedding = torch.cat(embeddings, dim=1)
         incident_embedding = self.incident_fusion(combined_embedding)
         
@@ -340,13 +335,17 @@ class IncidentsIcsfModule(nn.Module):
         """
         if not self.use_sensor_info or sensor_data is None:
             return None
-            
-        sensor_type_emb = self.sensor_type_embedding(sensor_data['sensor_type'].long())
-        surface_emb = self.surface_embedding(sensor_data['surface'].long())
-        roadway_use_emb = self.roadway_use_embedding(sensor_data['roadway_use'].long())
+
+        sensor_type = sensor_data['sensor_type'].long().clamp(0, self.sensor_type_embedding.num_embeddings - 1)
+        surface = sensor_data['surface'].long().clamp(0, self.surface_embedding.num_embeddings - 1)
+        roadway_use = sensor_data['roadway_use'].long().clamp(0, self.roadway_use_embedding.num_embeddings - 1)
+
+        sensor_type_emb = self.sensor_type_embedding(sensor_type)
+        surface_emb = self.surface_embedding(surface)
+        roadway_use_emb = self.roadway_use_embedding(roadway_use)
         
-        road_width_emb = self.road_width_linear(sensor_data['road_width'].unsqueeze(-1))
-        speed_limit_emb = self.speed_limit_linear(sensor_data['speed_limit'].unsqueeze(-1))
+        road_width_emb = self.road_width_linear(sensor_data['road_width'].float().unsqueeze(-1))
+        speed_limit_emb = self.speed_limit_linear(sensor_data['speed_limit'].float().unsqueeze(-1))
         
         sensor_features = torch.cat([
             sensor_type_emb,
@@ -360,68 +359,49 @@ class IncidentsIcsfModule(nn.Module):
         
         return sensor_embed
 
-    def apply_incident_icsf_fusion(self, history_data, incident_data, sensor_data=None, incident_tod_feat=None, incident_day_feat=None):
+    def forward(self, history_data, incident_data, sensor_data=None, incident_tod_feat=None, incident_day_feat=None):
         """
-        Use ICSF method to fuse incident information into historical data
+        Fuse the current incident context into the latest traffic hidden state.
         """
-        batch_size, seq_len, num_nodes, hidden_dim = history_data.shape
+        _, _, num_nodes, hidden_dim = history_data.shape
         
         incident_embedding = self.embed_incident_features(incident_data, incident_tod_feat, incident_day_feat)
         
         incident_distances = incident_data['distances']
         
-        distance_mask = (incident_distances.sum(dim=-1) > 0).float().unsqueeze(-1)
+        distance_mask = (incident_distances.abs().sum(dim=-1) > 0).float().unsqueeze(-1)
         
-        attention_weights = self.get_attention_weights(incident_distances)
+        distance_context = self.get_attention_weights(incident_distances)
         
         K_incident = self.k_proj(incident_embedding).unsqueeze(1)
         V_incident = self.v_proj(incident_embedding).unsqueeze(1)
         
         K_expanded = K_incident.expand(-1, num_nodes, -1)
         V_expanded = V_incident.expand(-1, num_nodes, -1)
-        
-        K_masked = K_expanded * distance_mask
-        
-        enhanced_data = history_data.clone()
-        
-        Q = history_data[:, -1, :, :]
-        attn_logits = Q * K_masked
+
+        Q = self.q_proj(history_data[:, -1, :, :])
+        attn_logits = (Q * K_expanded).sum(dim=-1, keepdim=True) / math.sqrt(hidden_dim)
         attn_logits_masked = attn_logits.masked_fill(distance_mask == 0, -1e7)
-        attn_weights_first = F.softmax(attn_logits_masked, dim=1)
-        
-        sensor_embed = None
+        semantic_attention = F.softmax(attn_logits_masked, dim=1) * distance_mask
+
+        fusion_parts = [semantic_attention.expand(-1, -1, hidden_dim), distance_context]
         if self.use_sensor_info:
             sensor_embed = self.process_sensor_info(sensor_data, num_nodes)
             if sensor_embed is None:
-                sensor_embed = torch.zeros(batch_size, num_nodes, self.icsf_dim, device=history_data.device)
-            fusion_input = torch.cat([
-                attn_weights_first,
-                attention_weights,
-                sensor_embed
-            ], dim=-1)
-        else:
-            fusion_input = torch.cat([
-                attn_weights_first,
-                attention_weights
-            ], dim=-1)
+                sensor_embed = torch.zeros_like(distance_context)
+            fusion_parts.append(sensor_embed)
+
+        fusion_input = torch.cat(fusion_parts, dim=-1)
             
         enhanced_attn = self.icsf_fusion_mlp(fusion_input)
         enhanced_attn_masked = enhanced_attn.masked_fill(distance_mask == 0, -1e7)
-        final_attn_weights = F.softmax(enhanced_attn_masked, dim=1)
+        final_attn_weights = F.softmax(enhanced_attn_masked, dim=1) * distance_mask
             
-        incident_effect = final_attn_weights * V_expanded
-        enhanced_data[:, -1, :, :] = history_data[:, -1, :, :] + incident_effect
-
-        incident_effect_parts = [
-            F.softmax(K_masked.masked_fill(distance_mask == 0, -1e7), dim=1),
-            attention_weights,
-        ]
-        if self.use_sensor_info:
-            incident_effect_parts.append(sensor_embed)
-        incident_effect_init = torch.cat(incident_effect_parts, dim=-1)
-        incident_effect = F.softmax(self.icsf_fusion_mlp(incident_effect_init).masked_fill(distance_mask == 0, -1e7), dim=1)
+        incident_context = final_attn_weights * V_expanded
+        enhanced_data = history_data.clone()
+        enhanced_data[:, -1, :, :] = self.output_norm(history_data[:, -1, :, :] + incident_context)
         
-        return enhanced_data, incident_effect
+        return enhanced_data, incident_context
         
 
 class DecoupleLayer(nn.Module):
@@ -542,6 +522,8 @@ class STLocalizedConv(nn.Module):
 
 
     def get_graph(self, support):
+        if not support:
+            return []
         graph_ordered = []
         mask = 1 - torch.eye(support[0].shape[0]).to(support[0].device)
         for graph in support:

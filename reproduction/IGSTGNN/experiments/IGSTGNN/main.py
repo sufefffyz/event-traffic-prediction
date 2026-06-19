@@ -1,6 +1,7 @@
 import os
 import argparse
 import numpy as np
+from datetime import datetime
 
 import sys
 sys.path.append(os.path.abspath(__file__ + '/../../..'))
@@ -8,14 +9,13 @@ sys.path.append(os.path.abspath(__file__ + '/../../..'))
 import torch
 torch.set_num_threads(3)
 
-from src.models.IGSTGNN import IGSTGNN
+from src.models.igstgnn import IGSTGNN
 from src.engines.igstgnn_engine import IGSTGNN_Engine
 from src.utils.args import get_public_config
 from src.utils.dataloader import load_dataset, load_adj_from_numpy, get_dataset_info
 from src.utils.graph_algo import normalize_adj_mx
 from src.utils.metrics import masked_mae
 from src.utils.logging import get_logger
-from time import time
 
 def set_seed(seed):
     np.random.seed(seed)
@@ -47,25 +47,22 @@ def get_config():
     # Incident related parameters
     parser.add_argument('--icsf_dim', type=int, default=64)
     parser.add_argument('--module_name', type=str, default='igstgnn')
-    parser.add_argument('--run_tag', type=str, default='')
 
-    # Incident decay parameters
-    parser.add_argument('--lambda_incident', type=float, default=0.1, help='Incident influence weight')
+    # TIID parameters. lambda_incident is kept as an ablation scale and defaults
+    # to the paper-equivalent value of 1.0.
+    parser.add_argument('--lambda_incident', type=float, default=1.0, help='Ablation scale for TIID incident context')
     parser.add_argument('--sigma_t', type=float, default=1.0, help='Temporal decay parameter')
     args = parser.parse_args()
 
     # Log directory configuration
     args.module_name = IGSTGNN.__module__.split('.')[-1]
-    tag_suffix = f"_{args.run_tag}" if args.run_tag else ""
+    args.run_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+    run_name = '{}_{}_s{}_{}'.format(args.dataset, args.module_name, args.seed, args.run_time)
     if args.use_sensor_info:
-        log_dir = './experiments/{}/{}_{}{}/'.format(
-            args.model_name, args.dataset, args.seed, tag_suffix
-        )
+        log_dir = './experiments/{}/{}/'.format(args.model_name, run_name)
     else:
-        log_dir = './experiments/{}/{}_{}_nosensor{}/'.format(
-            args.model_name, args.dataset,  args.seed, tag_suffix
-        )
-    logger = get_logger(log_dir, __name__, 'record_{}_s{}{}.log'.format(args.module_name,args.seed,tag_suffix))
+        log_dir = './experiments/{}/{}_nosensor/'.format(args.model_name, run_name)
+    logger = get_logger(log_dir, __name__, 'record_{}_s{}_{}.log'.format(args.module_name, args.seed, args.run_time))
     print("model_name", args.module_name)
     logger.info(args)
     
@@ -78,6 +75,7 @@ def main():
     
     data_path, adj_path, node_num = get_dataset_info(args.dataset)
     args.data_path = data_path
+    args.node_num = node_num
     logger.info('Adj path: ' + adj_path)
 
     # Load adjacency matrix
@@ -96,8 +94,11 @@ def main():
     model = IGSTGNN(node_num=node_num,
                          input_dim=args.input_dim,
                          output_dim=args.output_dim,
+                         seq_len=args.seq_len,
+                         horizon=args.horizon,
                          model_args=vars(args),
                          dataset=args.dataset,
+                         data_path=data_path,
                          use_sensor_info=args.use_sensor_info)
 
 
@@ -125,9 +126,7 @@ def main():
                                 cl_step=cl_step,
                                 warm_step=warm_step,
                                 horizon=args.horizon,
-                                incident=args.incident,
-                                time = time(),
-                                module_name=args.module_name)
+                                incident=args.incident)
 
     if args.mode == 'train':
         engine.train()
@@ -135,4 +134,4 @@ def main():
         engine.evaluate(args.mode)
 
 if __name__ == "__main__":
-    main() 
+    main()
