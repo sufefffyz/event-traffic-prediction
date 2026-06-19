@@ -86,6 +86,53 @@ Screen/log:
 The screen waits for GPU 0 to have more than 50% free memory, then runs the
 README/run.sh-style Alameda command with default training epochs.
 
+### Three-Dataset Official Reproduction
+
+Current official IGSTGNN code is an independent PyTorch framework, not BasicTS
+or LargeST. The official entrypoint is `experiments/IGSTGNN/main.py`; its
+dataloader consumes incident-centered sample dictionaries with structured
+incident fields and optional sensor metadata.
+
+The current three-dataset reproduction target is server `183.174.228.172`:
+
+- Code: `/home/yuzhang_fei/code/event-traffic-prediction-git`
+- Data root: `/home/yuzhang_fei/data/event-traffic-prediction/IGSTGNN/data`
+- Conda env: `igstgnn`
+- GPUs: `1 3`
+- Datasets: `Alameda`, `Contra_Costa`, `Orange`
+- Official command settings: `seed=2025`, `bs=48`, `seq_len=12`,
+  `horizon=12`, `--incident`, `--use_sensor_info`, `max_epochs=100`,
+  `patience=20`
+
+The 172 server does not have `/data/yuzhang_fei`, and `/data` is not writable
+by the user, so the reproduction data is kept under `/home/yuzhang_fei/data`.
+The server also did not have a Kaggle token at planning time; provide
+`~/.kaggle/kaggle.json`, set `IGSTGNN_DATA_ZIP=/path/to/data4igstgnn.zip`, or
+allow the script to try the public Kaggle download URL.
+
+Project-side helper scripts:
+
+```bash
+reproduction/server_scripts/run_igstgnn_three_datasets_official.sh
+reproduction/server_scripts/igstgnn_check_dataset.py
+reproduction/server_scripts/igstgnn_export_test_results.py
+reproduction/server_scripts/igstgnn_summarize_results.py
+```
+
+Launch on 172:
+
+```bash
+cd /home/yuzhang_fei/code/event-traffic-prediction-git
+screen -dmS igstgnn_three_dataset_official \
+  bash reproduction/server_scripts/run_igstgnn_three_datasets_official.sh
+```
+
+The launcher first prepares the official 70/15/15 splits without reshuffling or
+renormalizing, runs one-epoch smoke checks, then runs the three full
+reproductions. Training remains official; prediction arrays are exported after
+training by loading `final_model_s2025.pt` and saving `test_result_s2025.npz`.
+The summary CSV is written under `reproduction/logs/`.
+
 ## ConFormer
 
 Official data source:
