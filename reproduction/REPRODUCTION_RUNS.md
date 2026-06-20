@@ -127,6 +127,14 @@ screen -dmS igstgnn_three_dataset_official \
   bash reproduction/server_scripts/run_igstgnn_three_datasets_official.sh
 ```
 
+For a recovery run after one dataset fails, the launcher can be restricted
+without changing any model or training hyperparameters:
+
+```bash
+IGSTGNN_DATASETS="Alameda Contra_Costa" \
+  bash reproduction/server_scripts/run_igstgnn_three_datasets_official.sh
+```
+
 The launcher first prepares the official 70/15/15 splits without reshuffling or
 renormalizing, runs one-epoch smoke checks, then runs the three full
 reproductions. Training remains official; prediction arrays are exported after
