@@ -100,9 +100,9 @@ The current three-dataset reproduction target is server `183.174.228.172`:
 - Conda env: `igstgnn`
 - GPUs: `1 3`
 - Datasets: `Alameda`, `Contra_Costa`, `Orange`
-- Official command settings: `seed=2025`, `bs=48`, `seq_len=12`,
-  `horizon=12`, `--incident`, `--use_sensor_info`, `max_epochs=100`,
-  `patience=20`
+- Official command settings: `seed=2025`, `seq_len=12`, `horizon=12`,
+  `--incident`, `--use_sensor_info`, `max_epochs=100`, `patience=20`
+- Paper batch sizes: `Alameda=48`, `Contra_Costa=48`, `Orange=24`
 
 The 172 server does not have `/data/yuzhang_fei`, and `/data` is not writable
 by the user, so the reproduction data is kept under `/home/yuzhang_fei/data`.
@@ -134,6 +134,11 @@ without changing any model or training hyperparameters:
 IGSTGNN_DATASETS="Alameda Contra_Costa" \
   bash reproduction/server_scripts/run_igstgnn_three_datasets_official.sh
 ```
+
+The launcher follows the paper batch sizes by default. The earlier Orange
+smoke attempt with `bs=48` was an invalid non-paper setting and OOMed before
+the first batch completed; it should not be counted as an official reproduction
+failure.
 
 The launcher first prepares the official 70/15/15 splits without reshuffling or
 renormalizing, runs one-epoch smoke checks, then runs the three full

@@ -7,7 +7,7 @@ CONDA_ENV=${CONDA_ENV:-igstgnn}
 DATA_ROOT=${IGSTGNN_DATA_ROOT:-/home/yuzhang_fei/data/event-traffic-prediction/IGSTGNN/data}
 DATA_ZIP=${IGSTGNN_DATA_ZIP:-}
 SEED=${IGSTGNN_SEED:-2025}
-BATCH_SIZE=${IGSTGNN_BATCH_SIZE:-48}
+BATCH_SIZE_OVERRIDE=${IGSTGNN_BATCH_SIZE:-}
 MAX_EPOCHS=${IGSTGNN_MAX_EPOCHS:-100}
 PATIENCE=${IGSTGNN_PATIENCE:-20}
 RUN_SMOKE=${IGSTGNN_RUN_SMOKE:-1}
@@ -132,6 +132,26 @@ wait_for_gpu() {
   done
 }
 
+dataset_batch_size() {
+  local dataset="$1"
+  if [ -n "$BATCH_SIZE_OVERRIDE" ]; then
+    echo "$BATCH_SIZE_OVERRIDE"
+    return
+  fi
+
+  case "$dataset" in
+    Alameda|Contra_Costa)
+      echo 48
+      ;;
+    Orange)
+      echo 24
+      ;;
+    *)
+      echo 48
+      ;;
+  esac
+}
+
 latest_run_dir() {
   local dataset="$1"
   find "$RUN_ROOT/experiments/igstgnn" -maxdepth 1 -type d \
@@ -145,16 +165,18 @@ run_dataset() {
   local patience="$4"
   local phase="$5"
   local log_file="$LOG_DIR/igstgnn_${dataset}_${phase}_s${SEED}_${RUN_TS}_g${gpu_id}.log"
+  local batch_size
+  batch_size=$(dataset_batch_size "$dataset")
 
   wait_for_gpu "$gpu_id"
   cd "$RUN_ROOT"
-  log "Starting IGSTGNN $phase run: dataset=$dataset gpu=$gpu_id epochs=$epochs"
+  log "Starting IGSTGNN $phase run: dataset=$dataset gpu=$gpu_id bs=$batch_size epochs=$epochs"
   CUDA_VISIBLE_DEVICES="$gpu_id" python experiments/IGSTGNN/main.py \
     --device cuda:0 \
     --dataset "$dataset" \
     --model_name igstgnn \
     --seed "$SEED" \
-    --bs "$BATCH_SIZE" \
+    --bs "$batch_size" \
     --incident \
     --use_sensor_info \
     --max_epochs "$epochs" \
@@ -177,7 +199,7 @@ run_dataset() {
     --device cuda:0 \
     --dataset "$dataset" \
     --seed "$SEED" \
-    --bs "$BATCH_SIZE" \
+    --bs "$batch_size" \
     --incident \
     --use_sensor_info \
     --run-dir "$run_dir" \
