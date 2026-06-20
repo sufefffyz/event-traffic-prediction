@@ -140,6 +140,21 @@ smoke attempt with `bs=48` was an invalid non-paper setting and OOMed before
 the first batch completed; it should not be counted as an official reproduction
 failure.
 
+Orange was then retried with the paper setting `bs=24` on 172 GPU 2 using
+screen `igstgnn_orange_official_bs24`. The run did use `bs=24` but still OOMed
+on the first training batch before the one-epoch smoke check completed:
+
+```text
+reproduction/logs/igstgnn_Orange_smoke_s2025_20260620_222257_g2.log
+Namespace(... dataset='Orange', seed=2025, bs=24, ... layer=5, ...)
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB.
+```
+
+No Orange full run or test-result file was produced from this attempt. This is
+recorded as a current environment/implementation memory issue under the paper
+batch setting, not as a reason to silently change model size, number of layers,
+or batch size.
+
 The launcher first prepares the official 70/15/15 splits without reshuffling or
 renormalizing, runs one-epoch smoke checks, then runs the three full
 reproductions. Training remains official; prediction arrays are exported after
