@@ -7,9 +7,24 @@ so no dataloader changes are required.
 """
 
 import argparse
+import sys
+import types
 from pathlib import Path
 
 import numpy as np
+
+
+def install_numpy_pickle_compat():
+    """Allow NumPy 1.x to load object arrays pickled by NumPy 2.x."""
+    if "numpy._core" in sys.modules:
+        return
+    numpy_core = types.ModuleType("numpy._core")
+    numpy_core.__dict__.update(np.core.__dict__)
+    numpy_core.multiarray = np.core.multiarray
+    numpy_core._multiarray_umath = np.core._multiarray_umath
+    sys.modules["numpy._core"] = numpy_core
+    sys.modules["numpy._core.multiarray"] = np.core.multiarray
+    sys.modules["numpy._core._multiarray_umath"] = np.core._multiarray_umath
 
 
 def parse_args():
@@ -57,6 +72,7 @@ def required_file(dataset_dir, filename):
 def main():
     args = parse_args()
     validate_ratios(args.train_ratio, args.val_ratio, args.test_ratio)
+    install_numpy_pickle_compat()
 
     dataset_dir = args.data_root / args.dataset
     all_file = required_file(dataset_dir, "incident_all.npy")

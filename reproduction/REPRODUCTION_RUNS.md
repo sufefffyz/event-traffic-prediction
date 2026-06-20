@@ -133,6 +133,12 @@ reproductions. Training remains official; prediction arrays are exported after
 training by loading `final_model_s2025.pt` and saving `test_result_s2025.npz`.
 The summary CSV is written under `reproduction/logs/`.
 
+Compatibility note: the Kaggle `incident_all.npy` object arrays may be pickled
+with NumPy 2.x module paths while the official environment pins
+`numpy==1.24.4`. The split/check helpers install a `numpy._core` import alias
+only for loading these arrays; they do not reshuffle, renormalize, or change
+training data values.
+
 ## ConFormer
 
 Official data source:

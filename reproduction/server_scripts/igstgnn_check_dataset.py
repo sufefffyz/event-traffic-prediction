@@ -3,6 +3,8 @@
 
 import argparse
 import json
+import sys
+import types
 from pathlib import Path
 
 
@@ -17,6 +19,19 @@ REQUIRED_FILES = [
     "incident_val.npy",
     "incident_test.npy",
 ]
+
+
+def install_numpy_pickle_compat(np):
+    """Allow NumPy 1.x to load object arrays pickled by NumPy 2.x."""
+    if "numpy._core" in sys.modules:
+        return
+    numpy_core = types.ModuleType("numpy._core")
+    numpy_core.__dict__.update(np.core.__dict__)
+    numpy_core.multiarray = np.core.multiarray
+    numpy_core._multiarray_umath = np.core._multiarray_umath
+    sys.modules["numpy._core"] = numpy_core
+    sys.modules["numpy._core.multiarray"] = np.core.multiarray
+    sys.modules["numpy._core._multiarray_umath"] = np.core._multiarray_umath
 
 
 def parse_args():
@@ -46,6 +61,7 @@ def sample_shape(sample, key):
 def check_dataset(root, dataset):
     import numpy as np
 
+    install_numpy_pickle_compat(np)
     dataset_dir = root / dataset
     if not dataset_dir.is_dir():
         raise FileNotFoundError(f"Missing dataset directory: {dataset_dir}")
